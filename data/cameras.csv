@@ -1,0 +1,3 @@
+room,source,description
+R101,0,Laptop webcam (replace with rtsp://user:pass@camera-ip:554/stream1)
+R102,0,Laptop webcam

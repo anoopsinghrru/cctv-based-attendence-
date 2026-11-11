@@ -1,0 +1,17 @@
+condition,face_px,both_faces_detected_%,threshold,accuracy_%,false_accept_%,false_reject_%,best_accuracy_%,best_threshold,mean_sim_same,mean_sim_diff
+"clean, face 110 px",110,100.0,0.4,99.4,0.0,1.22,99.8,0.17,0.672,0.049
+"face 64 px, Lanczos upscale",64,100.0,0.4,99.4,0.0,1.22,99.6,0.19,0.668,0.051
+"face 64 px, plain warp",64,100.0,0.4,99.4,0.0,1.22,99.6,0.17,0.666,0.052
+"face 40 px, Lanczos upscale",40,100.0,0.4,99.2,0.0,1.63,99.6,0.17,0.65,0.046
+"face 40 px, plain warp",40,100.0,0.4,99.2,0.0,1.63,99.8,0.19,0.648,0.048
+"face 28 px, Lanczos upscale",28,100.0,0.35,98.6,0.0,2.85,99.8,0.15,0.599,0.048
+"face 28 px, plain warp",28,100.0,0.35,98.8,0.0,2.44,99.8,0.17,0.606,0.048
+"face 20 px, Lanczos upscale",20,98.4,0.35,96.0,0.0,8.13,99.2,0.15,0.523,0.047
+"face 20 px, plain warp",20,98.4,0.35,96.8,0.0,6.5,99.2,0.18,0.542,0.047
+"face 14 px, Lanczos upscale",14,0.4,0.35,51.0,0.0,99.59,51.2,0.1,0.366,
+"face 14 px, plain warp",14,0.4,0.35,51.2,0.0,99.19,51.2,0.1,0.415,
+"dark+noise 40 px, no enhancement",40,100.0,0.35,99.2,0.0,1.63,99.4,0.3,0.581,0.05
+"dark+noise 40 px, detect enhanced / embed original",40,100.0,0.35,98.8,0.0,2.44,99.6,0.18,0.58,0.049
+"dark+noise 40 px, detect + embed enhanced",40,100.0,0.35,96.4,0.0,7.32,99.4,0.19,0.526,0.051
+"blurred 40 px, no enhancement",40,99.6,0.35,94.4,0.0,11.38,98.4,0.22,0.519,0.062
+"blurred 40 px, detect + embed enhanced",40,100.0,0.35,89.0,0.0,22.36,98.0,0.16,0.455,0.066

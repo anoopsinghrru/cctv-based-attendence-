@@ -1,0 +1,22 @@
+day,start,end,room,batch,subject,faculty
+Mon,09:00,10:00,R101,CSE-A,Computer Networks,Dr. Mehta
+Mon,10:00,11:00,R101,CSE-A,Digital Image Processing,Dr. Rao
+Mon,11:00,12:00,R102,DEMO,Face Recognition Lab,Dr. Shah
+Tue,09:00,10:00,R101,CSE-A,Operating Systems,Dr. Iyer
+Tue,10:00,11:00,R102,DEMO,Face Recognition Lab,Dr. Shah
+Wed,10:00,11:00,R101,CSE-A,Digital Image Processing,Dr. Rao
+Wed,11:00,12:00,R102,DEMO,Face Recognition Lab,Dr. Shah
+Wed,14:00,15:00,R101,CSE-A,Computer Networks,Dr. Mehta
+Thu,10:00,11:00,R101,CSE-A,Digital Image Processing,Dr. Rao
+Thu,11:00,12:00,R102,DEMO,Face Recognition Lab,Dr. Shah
+Thu,14:00,15:00,R101,CSE-A,Operating Systems,Dr. Iyer
+Fri,09:00,10:00,R101,CSE-A,Digital Image Processing,Dr. Rao
+Fri,10:00,11:00,R102,DEMO,Face Recognition Lab,Dr. Shah
+Thu,12:00,13:00,R103,EXAM,CCTV Exam Hall (real footage),Dr. Rao
+Wed,12:00,13:00,R103,EXAM,CCTV Exam Hall (real footage),Dr. Rao
+Mon,09:00,10:00,R201,BSCS-A,Embedded Systems,Dr. Khan
+Thu,09:00,10:00,R201,BSCS-A,Embedded Systems,Dr. Khan
+Fri,11:00,12:00,R201,BSCS-A,Embedded Systems,Dr. Khan
+Mon,10:00,11:00,R202,BSCS-B,Software Engineering,Dr. Ali
+Thu,09:00,10:00,R202,BSCS-B,Software Engineering,Dr. Ali
+Fri,11:00,12:00,R202,BSCS-B,Software Engineering,Dr. Ali

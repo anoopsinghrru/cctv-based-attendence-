@@ -1,0 +1,17 @@
+opencv-python
+numpy
+# GPU build pinned for a GTX 10xx (Pascal) card: newer onnxruntime-gpu uses CUDA 13 and newer
+# cuDNN releases have no kernels for Pascal ("no kernel image is available"). The [cuda,cudnn]
+# extras pull the CUDA 12 runtime as pip packages, so no separate CUDA install is needed.
+# No NVIDIA GPU? Replace the next two lines with plain:  onnxruntime
+onnxruntime-gpu[cuda,cudnn]==1.24.4
+nvidia-cudnn-cu12==9.10.2.21
+streamlit
+pandas
+openpyxl
+pyyaml
+scikit-learn           # DBSCAN for auto_enroll_from_video.py
+matplotlib             # figures in dip_demo.py
+pytest                 # test suite
+yt-dlp                 # get_sample_video.py
+imageio-ffmpeg         # ffmpeg binary for yt-dlp section downloads

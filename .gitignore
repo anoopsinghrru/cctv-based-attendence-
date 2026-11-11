@@ -1,0 +1,14 @@
+# large binaries and downloads
+models/
+tools/
+data/samples/
+
+# personal data: face photos, embeddings, attendance records, snapshots
+data/faces/
+data/attendance.db
+outputs/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/

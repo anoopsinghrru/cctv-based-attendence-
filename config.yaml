@@ -1,0 +1,57 @@
+# DIP - CCTV face-recognition attendance. All tunable settings live here.
+
+models:
+  dir: models
+  detector: det_10g.onnx        # SCRFD-10G face detector
+  recognizer: w600k_r50.onnx    # ArcFace R50, 512-d embedding
+  use_gpu: true                 # uses CUDA if onnxruntime-gpu is installed, else CPU
+  gpu_mem_gb: 3                 # memory cap for the 4 GB card
+
+detection:
+  input_size: 640               # detector input (square)
+  score_threshold: 0.5
+  nms_threshold: 0.4
+  min_face_px: 14               # ignore detections smaller than this (shorter side)
+  tiled: true                   # also run the detector on overlapping tiles
+  tile_grid: [3, 2]             # columns, rows
+  tile_overlap: 0.25            # fraction of a tile shared with its neighbour
+
+recognition:
+  match_threshold: 0.40         # cosine similarity for a sharp face
+  blurry_threshold: 0.35        # used when the crop's blur score is low
+  margin: 0.06                  # best match must beat the 2nd-best student by this
+  blurry_below: 60.0            # Laplacian variance under this => "blurry" crop
+  reject_below: 8.0             # Laplacian variance under this => crop is discarded
+  upscale_below_px: 112         # Lanczos-upscale face crops smaller than this
+
+preprocess:
+  enabled: true
+  dark_mean: 95                 # mean luminance under this => apply gamma correction
+  target_mean: 125              # gamma is chosen to bring the mean here
+  denoise: bilateral            # bilateral | nlm | none
+  noise_ok: 4.0                 # noise sigma above this => stronger denoise, gentler CLAHE/sharpen
+  bilateral_d: 5
+  bilateral_sigma_color: 35
+  bilateral_sigma_space: 35
+  nlm_h: 5
+  clahe: true
+  clahe_clip: 2.0
+  clahe_grid: 8
+  unsharp_amount: 0.6
+  unsharp_sigma: 1.5
+
+attendance:
+  sample_every_sec: 3           # one frame every N seconds
+  min_sightings: 3              # Present needs at least this many sightings ...
+  time_buckets: 10              # ... the class time is split into this many buckets ...
+  min_bucket_fraction: 0.30     # ... and the student must appear in this share of them
+  late_after_min: 10            # first seen later than this => Late
+
+paths:
+  db: data/attendance.db
+  faces: data/faces
+  timetable: data/timetable.csv
+  students: data/students.csv
+  cameras: data/cameras.csv
+  snapshots: outputs/snapshots
+  reports: outputs/reports
