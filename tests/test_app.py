@@ -1,4 +1,4 @@
-"""Drive the Streamlit dashboard headlessly: every tab and every action button."""
+"""Drive the Streamlit dashboard headlessly: every page and every action button."""
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +17,7 @@ from tests.conftest import ROOT, TEST_SET, needs_models, needs_samples
 
 pytestmark = [needs_models, needs_samples]
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+PAGES = ["overview", "attendance", "students", "timetable", "reports", "system"]
 
 
 @pytest.fixture
@@ -35,14 +36,22 @@ def app_cfg(tmp_path, monkeypatch):
     (tmp_path / "students.csv").write_text("roll_no,name,batch\nT3,Lin-Manuel Miranda,DEMO\nT2,Joe Biden,DEMO\n")
     monkeypatch.setenv("DIP_CONFIG", str(cfg_file))
     st.cache_resource.clear()
+    st.cache_data.clear()
     yield load_config(cfg_file)
     st.cache_resource.clear()
 
 
-def launch():
+def go(at, page):
+    at.session_state["_goto"] = page
+    at.run()
+    assert not at.exception, f"{page}: {at.exception}"
+    return at
+
+
+def launch(page="overview"):
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=300).run()
     assert not at.exception, at.exception
-    return at
+    return go(at, page) if page != "overview" else at
 
 
 def by_label(widgets, label):
@@ -50,21 +59,39 @@ def by_label(widgets, label):
 
 
 def texts(at):
-    return " | ".join(str(e.value) for kind in ("success", "error", "warning", "info", "markdown")
+    return " | ".join(str(e.value) for kind in ("success", "error", "warning", "info", "markdown", "title", "subheader")
                       for e in getattr(at, kind))
 
 
-def test_app_loads_with_no_sessions(app_cfg):
+def metrics(at):
+    return {m.label: m.value for m in at.metric}
+
+
+def test_every_page_loads_on_an_empty_installation(app_cfg):
     at = launch()
-    assert [t.label for t in at.tabs] == ["Dashboard", "Run Session", "Students", "Timetable", "Reports"]
+    assert metrics(at)["Students"] == "2" and metrics(at)["Sessions recorded"] == "0"
+    assert "Getting started" in texts(at) and "Face Lab" in str([d.value for d in at.dataframe])
+    titles = {}
+    for page in PAGES:
+        go(at, page)
+        titles[page] = at.title[0].value
+    assert titles == {"overview": "Overview", "attendance": "Take attendance", "students": "Students",
+                      "timetable": "Timetable", "reports": "Reports", "system": "System"}
+    go(at, "reports")
     assert "No sessions yet" in texts(at)
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Students"] == "2" and metrics["Sessions recorded"] == "0"
+    go(at, "system")
+    assert metrics(at)["Face models"] == "Ready"
+
+
+def test_overview_button_opens_take_attendance(app_cfg):
+    at = launch()
+    by_label(at.button, "Take attendance").click().run()
+    assert not at.exception and at.title[0].value == "Take attendance"
     assert "Face Lab" in texts(at)                       # the timetable slot is resolved for the room
 
 
 def test_add_student_and_validation(app_cfg):
-    at = launch()
+    at = launch("students")
     by_label(at.text_input, "Roll number").set_value("N 1/x")
     by_label(at.text_input, "Batch").set_value("DEMO")
     at.run()
@@ -81,12 +108,19 @@ def test_add_student_and_validation(app_cfg):
     assert "N100" in set(pd.read_csv(app_cfg["paths"]["students"])["roll_no"])   # students.csv kept in sync
 
 
+def test_roster_search_filters_the_table(app_cfg):
+    at = launch("students")
+    by_label(at.text_input, "Search").set_value("biden")
+    at.run()
+    assert not at.exception and "1 of 2 students shown" in " ".join(c.value for c in at.caption)
+
+
 def test_reenroll_and_delete_student(app_cfg, engine):
     for roll, photo in (("T3", "lin-manuel-miranda.png"), ("T2", "biden.jpg")):
         folder = Path(app_cfg["paths"]["faces"]) / roll
         folder.mkdir(parents=True)
         shutil.copy(TEST_SET / photo, folder / photo)
-    at = launch()
+    at = launch("students")
     by_label(at.button, "Re-enroll everyone").click().run()
     assert not at.exception
     db = Database(app_cfg["paths"]["db"])
@@ -101,10 +135,14 @@ def test_reenroll_and_delete_student(app_cfg, engine):
 
 
 def test_save_timetable_and_cameras(app_cfg):
-    at = launch()
+    at = launch("timetable")
+    assert metrics(at)["Weekly slots"] == "7"
+    assert "Face Lab · DEMO" in str(at.dataframe[0].value)             # week view grid
+    by_label(at.segmented_control, "Timetable view").set_value("Edit timetable").run()
     by_label(at.button, "Save timetable").click().run()
-    assert not at.exception
+    assert not at.exception and "Timetable saved" in texts(at)
     assert len(pd.read_csv(app_cfg["paths"]["timetable"])) == 7
+    by_label(at.segmented_control, "Timetable view").set_value("Cameras").run()
     by_label(at.button, "Save cameras").click().run()
     assert not at.exception and "Cameras saved" in texts(at)
     assert list(pd.read_csv(app_cfg["paths"]["cameras"], dtype=str)["room"]) == ["R102"]
@@ -117,15 +155,14 @@ def test_run_session_then_reports_then_delete(app_cfg, engine):
     enroll_photo(engine, db, "T3", cv2.imread(str(TEST_SET / "lin-manuel-miranda.png")), "p.png")
     enroll_photo(engine, db, "T2", cv2.imread(str(TEST_SET / "biden.jpg")), "b.jpg")
 
-    at = launch()
+    at = launch("attendance")
     by_label(at.radio, "Source").set_value("Sample video")
     at.run()
-    clip = next(o for o in by_label(at.selectbox, "File").options if "short_hamilton_clip" in str(o))
     by_label(at.selectbox, "File").set_value(next(
         p for p in sorted((ROOT / "data" / "samples").rglob("*.mp4")) if p.name == "short_hamilton_clip.mp4"))
     by_label(at.slider, "Sample one frame every").set_value(0.5)
     at.run()
-    assert clip and "2 of 2 students enrolled" in texts(at)
+    assert "2 of 2 students enrolled" in texts(at)
     by_label(at.button, "Start session").click().run()
     assert not at.exception, at.exception
 
@@ -136,24 +173,36 @@ def test_run_session_then_reports_then_delete(app_cfg, engine):
     assert sessions.iloc[0]["date"] == datetime.now().strftime("%Y-%m-%d")
     assert any(Path(app_cfg["paths"]["reports"]).glob("session_*.xlsx"))
 
-    # result panel + reports tab
-    shown = {m.label: m.value for m in at.metric}
+    # the result panel on the same page
+    shown = metrics(at)
     assert shown["Present"] == "1" and shown["Absent"] == "1" and shown["Attendance"] == "50%"
-    labels = [b.label for b in at.get("download_button")]
-    assert "Download Excel" in labels and "Download full report (Excel)" in labels
-    assert "Attendance taken" in str([d.value for d in at.dataframe])      # dashboard marks today's slot
+    assert "Download Excel" in [b.label for b in at.get("download_button")]
 
+    go(at, "overview")
+    assert "Attendance taken" in str([d.value for d in at.dataframe])      # today's slot is marked
+    assert metrics(at)["Sessions recorded"] == "1" and metrics(at)["Average attendance"] == "50%"
+
+    go(at, "students")
+    roster = at.dataframe[0].value.set_index("roll_no")["attendance"]      # roster shows attendance %
+    assert roster["T2"] == 0.0 and roster["T3"] == 100.0
+
+    go(at, "reports")
+    assert "Download full report (Excel)" in [b.label for b in at.get("download_button")]
+    assert metrics(at)["Sessions"] == "1" and metrics(at)["Below 75%"] == "1"
     by_label(at.selectbox, "Batch ").set_value("DEMO")
     at.run()
     assert not at.exception
+    for view in ("By subject", "Session archive"):
+        by_label(at.segmented_control, "Report view").set_value(view).run()
+        assert not at.exception, f"{view}: {at.exception}"
+    assert metrics(at)["Present"] == "1"                               # the session panel is shown
     by_label(at.button, "Delete session").click().run()
     assert not at.exception and len(db.sessions()) == 0
+    assert "No sessions yet" in texts(at)
 
 
-def test_run_session_tab_warns_when_no_class_is_scheduled(app_cfg):
-    Path(app_cfg["paths"]["timetable"]).write_text(
-        "day,start,end,room,batch,subject,faculty\n")
-    at = launch()
-    assert not at.exception
+def test_take_attendance_warns_when_no_class_is_scheduled(app_cfg):
+    Path(app_cfg["paths"]["timetable"]).write_text("day,start,end,room,batch,subject,faculty\n")
+    at = launch("attendance")
     assert by_label(at.button, "Start session").disabled
     assert "No class is scheduled" in texts(at)

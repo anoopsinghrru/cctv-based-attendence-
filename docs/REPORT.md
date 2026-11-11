@@ -200,7 +200,7 @@ GTX 1050 against 1.99 s on CPU. At one frame every 3 s both are faster than real
 
 ## 7. Testing
 
-`python -m pytest` runs 64 automated tests in about 40 s.
+`python -m pytest` runs 66 automated tests in about 40 s.
 
 | Area | Tests | What is checked |
 |---|---|---|
@@ -208,7 +208,7 @@ GTX 1050 against 1.99 s on CPU. At one frame every 3 s both are faster than real
 | Timetable and database | 14 | slot lookup and boundaries, midnight-crossing slots, CSV round trip, batch-restricted gallery, cascade deletes |
 | Attendance rules | 22 | Present / Late / Absent at each boundary, thresholds, margin, one-face-per-student, unknown merging, export, virtual clock, time-lapse |
 | Real models | 11 | alignment maths, NMS, face counts, landmarks, same / different person scores, small faces, tiled detection, enrolment, an end-to-end recorded session |
-| Dashboard | 6 | every tab loads; add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
+| Dashboard | 8 | every page loads; navigation, roster search, add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
 
 The attendance rules are tested with a scripted fake face engine, so each rule is checked exactly
 rather than inferred from footage. Writing the suite found and fixed a real defect: class slots

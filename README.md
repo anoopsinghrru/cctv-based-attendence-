@@ -19,7 +19,7 @@ Put `det_10g.onnx` and `w600k_r50.onnx` (from InsightFace `buffalo_l.zip`, relea
 
 ```
 python -m streamlit run app.py                 # dashboard
-python -m pytest                               # 64 automated tests (about 40 s)
+python -m pytest                               # 66 automated tests (about 40 s)
 python scripts/rebuild_demo_sessions.py        # re-run every demo session from scratch
 python scripts/evaluate.py                     # accuracy on the LFW benchmark
 ```
@@ -78,7 +78,9 @@ BSCS-B long class is three separate recordings played as one time-lapse.
 | `src/timetable.py` | (room, datetime) -> slot, including slots that cross midnight |
 | `src/database.py` | SQLite: students, embeddings, sessions, attendance, unknown faces |
 | `src/attendance.py` | matching, per-frame processing, Present / Late / Absent rules, recorded and live runners, export |
-| `app.py` | Streamlit dashboard: Dashboard, Run Session, Students, Timetable, Reports |
+| `app.py` | Dashboard shell ("AttendVision"): sidebar navigation, theme, page routing |
+| `ui/` | One module per page — Overview, Take attendance, Students, Timetable, Reports, System — plus `theme.py` (styling, charts) and `common.py` (shared data helpers, session result panel) |
+| `.streamlit/config.toml`, `assets/` | Colour theme and logo |
 | `scripts/` | enroll, run_session, auto_enroll_from_video, dip_demo, evaluate, get_sample_video, build_clips_from_frames, simulate_late_arrival, rebuild_demo_sessions |
 | `tests/` | unit tests, real-model tests, and headless dashboard tests |
 | `config.yaml` | every threshold and setting |
