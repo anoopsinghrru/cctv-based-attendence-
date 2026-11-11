@@ -135,7 +135,7 @@ def trend(df, x="date", value="attendance"):
 def donut(counts, height=210):
     """Present / Late / Absent split. `counts` is a dict."""
     df = pd.DataFrame({"status": list(STATUS), "count": [int(counts.get(s, 0)) for s in STATUS]})
-    chart = alt.Chart(df[df["count"] > 0]).mark_arc(innerRadius=58, outerRadius=88, cornerRadius=3, padAngle=0.02).encode(
+    chart = alt.Chart(df[df["count"] > 0]).mark_arc(innerRadius=48, outerRadius=74, cornerRadius=3, padAngle=0.02).encode(
         theta=alt.Theta("count:Q", stack=True),
         color=alt.Color("status:N", scale=alt.Scale(domain=list(STATUS), range=list(STATUS.values())),
                         legend=alt.Legend(title=None, orient="bottom")),

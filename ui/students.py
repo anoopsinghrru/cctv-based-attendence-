@@ -103,16 +103,23 @@ def render():
                     files = [(f.name, f.getvalue()) for f in ups or []]
                     if shot:
                         files.append((f"camera_{datetime.now():%Y%m%d_%H%M%S}.jpg", shot.getvalue()))
-                    good = 0
+                    good, skipped = 0, []
                     for fname, data in files:
                         img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
                         if img is None or enroll_photo(eng, d, roll, img, fname) is None:
-                            st.warning(f"No face found in {fname}; it was skipped.", icon=":material/warning:")
+                            skipped.append(fname)
                             continue
                         (folder / Path(fname).name).write_bytes(data)
                         good += 1
                     d.export_students_csv(P["students"])
-                    st.success(f"Saved {roll}. {good} new photo(s) enrolled.", icon=":material/check_circle:")
+                    # show the outcome after a rerun, so the roster and counters include the new student
+                    st.session_state["_student_saved"] = (f"Saved {roll}. {good} new photo(s) enrolled.", skipped)
+                    st.rerun()
+            if "_student_saved" in st.session_state:
+                message, skipped = st.session_state.pop("_student_saved")
+                st.success(message, icon=":material/check_circle:")
+                for fname in skipped:
+                    st.warning(f"No face found in {fname}; it was skipped.", icon=":material/warning:")
 
         with theme.card("maint"):
             st.subheader("Maintenance")

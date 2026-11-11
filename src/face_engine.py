@@ -255,6 +255,12 @@ class FaceEngine:
     def largest_face(self, img):
         """The biggest face in an enrollment photo (None if no face)."""
         faces = self.analyze(img, tiled=False, reject_blurry=False)
+        if not faces:
+            # A photo cropped tightly to the face leaves the detector no context: retry with a border.
+            h, w = img.shape[:2]
+            pad = max(h, w) // 2
+            padded = cv2.copyMakeBorder(img, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(124, 116, 104))
+            faces = self.analyze(padded, tiled=False, reject_blurry=False)
         return max(faces, key=lambda f: f.size) if faces else None
 
 
