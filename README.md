@@ -38,7 +38,7 @@ enrolled photos, and each student is marked Present, Late or Absent automaticall
 - **Dashboard** to run a session on a recording, webcam or RTSP stream, manage students and the
   timetable, read reports and export Excel.
 - **Seating heat map** for every session: a pseudo-colour map of where faces were seen.
-- **DIP Lab** page that demonstrates every unit of the course syllabus live on the footage.
+- **DIP Lab** page that shows each image-processing step of the system live on the footage.
 
 The face detector and recogniser are pretrained models used as they are. The project's own work
 is the image-processing pipeline, the matching and attendance logic, the dashboard and the
@@ -53,8 +53,7 @@ evaluation.
 | Strangers accepted as a student, class of 40, at the match threshold | 0.00% |
 | Faces found in a seminar frame: full frame only vs with tiles | 23 vs 41 |
 | Time per 1080p frame with tiling: GTX 1050 vs CPU | 0.36 s vs 2.0 s |
-| Recognition after JPEG compression: quality 70 / 40 / 20 | 98.5% / 96.0% / 85.0% |
-| Automated tests | 99, all passing |
+| Automated tests | 72, all passing |
 
 Details, per-condition tables and the cases where it fails are in the report.
 
@@ -104,7 +103,7 @@ python -m streamlit run app.py
 | Students | Roster with photos, search, photo upload or camera capture, each student's record |
 | Timetable | Weekly grid, slot editor, room cameras |
 | Reports | Attendance by student and by subject, session archive, Excel export |
-| DIP Lab | Each image-processing topic demonstrated on a chosen frame |
+| DIP Lab | Each image-processing step of the system, tried on a chosen frame |
 | System | Inference device, model files, storage, thresholds in force |
 
 ![Live monitor](docs/figures/screenshot_live_monitor.jpg)
@@ -113,21 +112,20 @@ python -m streamlit run app.py
 
 ### DIP Lab
 
-Twenty topics grouped by the six units of the course syllabus. Each has its formula, adjustable
-parameters, before/after images, charts and measurements, and says whether it is a pipeline stage
-or shown for analysis.
+The nine image-processing steps of the system, in the order it applies them. Each has its
+formula, the system's own settings as adjustable controls, before/after images and measurements.
 
-| Unit | Topics |
+| Step | Where it is used |
 |---|---|
-| 1 Image fundamentals | Sampling and quantization |
-| 2 Enhancement, spatial and frequency | Intensity transformations, histogram processing, sharpening and the blur measure, frequency domain, homomorphic filtering |
-| 3 Restoration and colour | Noise and spatial filtering, inverse and Wiener filtering, colour models, pseudo-colour |
-| 4 Compression and morphology | Huffman / arithmetic / LZW coding, JPEG, morphological processing |
-| 5 Segmentation | Point, line and edge detection; thresholding and region growing; Hough transform and boundaries |
-| 6 Recognition and case study | Recognition as classification, geometric transforms, multi-scale tiling, the complete pipeline |
-
-Not every technique helps attendance, and the page says so where it was measured: homomorphic
-filtering did not raise detection, and the morphological head count is unreliable in a classroom.
+| Brightness and gamma correction | Pipeline stage 1 |
+| Noise reduction (noise estimate, bilateral filter) | Pipeline stage 2 |
+| Contrast: CLAHE on the lightness channel of LAB | Pipeline stage 3 |
+| Sharpening (unsharp mask) and the Laplacian blur score | Pipeline stage 4, face quality check |
+| Face alignment (similarity transform) and Lanczos upscaling | Pipeline stage 5 |
+| Multi-scale tiling | Pipeline stage 6 |
+| Face matching (cosine similarity, threshold and margin) | Recognition |
+| Seating heat map (pseudo-colour) | Session result |
+| Complete pipeline | All stages together |
 
 ![DIP Lab](docs/figures/screenshot_dip_lab.jpg)
 
@@ -221,11 +219,10 @@ Things to state when presenting the demo:
 ## Evaluation and tests
 
 ```
-python -m pytest                        # 99 tests, about a minute and a half
+python -m pytest                        # 72 tests, about a minute
 python scripts/evaluate.py              # verification accuracy on LFW in 16 conditions
 python scripts/evaluate_open_set.py     # threshold choice for a class-sized gallery
 python scripts/evaluate_dataset.py      # detection and identification against the dataset's labels
-python scripts/evaluate_syllabus.py     # homomorphic, head count, JPEG, restoration, quantization, lossless coding
 python scripts/dip_demo.py --video data/samples/kaggle_clips/owais-class-2.mp4 --at 10
 python scripts/rebuild_demo_sessions.py # re-run every demo session
 ```
@@ -239,8 +236,8 @@ are missing. Set `DIP_CONFIG` to point the code at another `config.yaml`.
 
 | Path | Role |
 |---|---|
-| `src/preprocess.py` | Pipeline operations: gamma, histogram, filters, CLAHE, sharpening, DFT, homomorphic filter, interpolation, tiles |
-| `src/dip_ops.py` | The rest of the syllabus: sampling and quantization, restoration, pseudo-colour, Huffman / arithmetic / LZW / JPEG, morphology, segmentation, Hough |
+| `src/preprocess.py` | Pipeline operations: histogram and gamma, noise estimate and denoising, CLAHE, unsharp mask, Lanczos upscale, blur score, tiles |
+| `src/heatmap.py` | Seating heat map: face positions accumulated over a session, drawn in pseudo-colour |
 | `src/face_engine.py` | SCRFD decoding (strides 8/16/32, 2 anchors), NMS, tiled detection, alignment, ArcFace embedding |
 | `src/timetable.py` | Room and time to class slot, including slots that cross midnight |
 | `src/database.py` | SQLite: students, embeddings, sessions, attendance, unknown faces |
@@ -291,8 +288,6 @@ Face data is biometric. Enrol people only with their consent. The figures and sc
 - Faces under about 20 pixels, turned away, or looking down are often missed.
 - The match thresholds were tuned on LFW, which is mostly frontal photographs.
 - No liveness check: a printed photo held to the camera would be accepted.
-- Homomorphic filtering, restoration and the morphological head count are implemented and
-  measured but did not improve attendance, so the pipeline does not use them.
 
 ## Sources and credits
 

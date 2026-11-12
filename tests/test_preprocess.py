@@ -102,94 +102,32 @@ def test_tiles_cover_frame_and_overlap():
     assert (tiles[0][2] - tiles[1][0]) > 100        # horizontal overlap wide enough for a face
 
 
-# ------------------------------------------------------------------ DIP fundamentals
-def test_intensity_transforms():
-    img = scene()
-    assert np.array_equal(pp.negative(pp.negative(img)), img)
-    assert pp.mean_brightness(pp.log_transform(img)) > pp.mean_brightness(img)      # log brightens
-    flat = (img.astype(np.float32) * 0.3 + 90).astype(np.uint8)
-    stretched = pp.contrast_stretch(flat)
-    assert pp.luminance(stretched).std() > 2 * pp.luminance(flat).std()
-    assert pp.luminance(stretched).min() < 15 and pp.luminance(stretched).max() > 240   # full range used
-    assert np.allclose(pp.transfer_curve("identity"), np.arange(256))
-    g = pp.transfer_curve("gamma", 0.5)
-    assert g[0] == 0 and abs(g[255] - 255) < 1e-6 and g[64] > 64                     # gamma < 1 lifts shadows
-    assert pp.transfer_curve("negative")[0] == 255
-
-
-def test_cdf_and_global_equalisation_flattens_it():
-    flat = (scene().astype(np.float32) * 0.3 + 90).astype(np.uint8)
-    c = pp.cdf(flat)
-    assert abs(c[-1] - 1) < 1e-6 and np.all(np.diff(c) >= -1e-9)
-    ideal = np.arange(1, 257) / 256.0
-    assert np.abs(pp.cdf(pp.global_hist_eq(flat)) - ideal).mean() < np.abs(c - ideal).mean() * 0.5
-
-
-def test_noise_models_and_psnr():
+# ------------------------------------------------------------------ measurement helpers
+def test_added_noise_and_psnr():
     img = scene()
     assert pp.psnr(img, img) == float("inf")
-    light, heavy = pp.add_noise(img, "gaussian", 5), pp.add_noise(img, "gaussian", 25)
+    light, heavy = pp.add_noise(img, 5), pp.add_noise(img, 25)
     assert pp.psnr(img, light) > pp.psnr(img, heavy) > 15
-    sp = pp.add_noise(img, "sp", 10)
-    changed = np.any(sp != img, axis=2).mean()
-    assert 0.06 < changed < 0.12                                  # about 10 % of pixels
-    assert set(np.unique(sp[np.any(sp != img, axis=2)])) <= {0, 255}
+    assert pp.estimate_noise(heavy) > pp.estimate_noise(light) > pp.estimate_noise(img)
 
 
-def test_median_wins_on_salt_and_pepper_and_bilateral_keeps_edges():
-    img = scene()
-    sp = pp.add_noise(img, "sp", 8)
-    score = {m: pp.psnr(img, pp.smooth(sp, m, 5)) for m in ("mean", "gaussian", "median")}
-    assert score["median"] > score["mean"] + 3 and score["median"] > score["gaussian"] + 3
-    noisy = pp.add_noise(img, "gaussian", 10)
-    for m in ("mean", "gaussian", "median", "bilateral", "nlm"):
-        assert pp.smooth(noisy, m, 5).shape == img.shape
-    assert pp.blur_score(pp.smooth(img, "bilateral", 5)) > pp.blur_score(pp.smooth(img, "mean", 5))
-    assert pp.smooth(img, "none") is img
-
-
-def test_sharpening_and_edge_maps():
-    soft = cv2.GaussianBlur(scene(), (0, 0), 2)
-    assert pp.blur_score(pp.laplacian_sharpen(soft, 0.6)) > pp.blur_score(soft)
+def test_laplacian_map_and_lab_planes():
     flat = np.full((60, 60, 3), 120, np.uint8)
-    assert pp.laplacian_map(flat).max() == 0 and pp.sobel_magnitude(flat).max() == 0
+    assert pp.laplacian_map(flat).max() == 0
     edge = flat.copy()
     edge[:, 30:] = 200
-    assert pp.sobel_magnitude(edge)[:, 28:32].max() > 200 and pp.sobel_magnitude(edge)[:, :20].max() == 0
-
-
-def test_frequency_domain():
-    img = scene()
-    spec = pp.fft_spectrum(img)
-    h, w = spec.shape
-    assert spec.shape == img.shape[:2] and spec[h // 2, w // 2] == 255          # DC term is the peak, centred
-    low = pp.frequency_mask((64, 64), "low", 10, "ideal")
-    assert low[32, 32] == 1 and low[0, 0] == 0 and np.allclose(low + pp.frequency_mask((64, 64), "high", 10, "ideal"), 1)
-    for profile in ("gaussian", "butterworth"):
-        m = pp.frequency_mask((64, 64), "low", 10, profile)
-        assert m[32, 32] > 0.99 and m[32, 42] < m[32, 36] < 1 and m[0, 0] < 0.05   # smooth roll-off
-    smooth, _ = pp.frequency_filter(img, "low", 15, "gaussian")
-    assert pp.blur_score(smooth) < pp.blur_score(img) * 0.5                      # low-pass removes detail
-    wide, _ = pp.frequency_filter(img, "low", 500, "gaussian")
-    assert np.abs(wide.astype(int) - pp.luminance(img).astype(int)).mean() < 2  # huge cut-off = identity
-    # blur moves energy out of the high frequencies, which is what the blur score detects
-    assert pp.high_frequency_energy(cv2.GaussianBlur(img, (0, 0), 2)) < pp.high_frequency_energy(img) * 0.5
-
-
-def test_interpolation_and_colour_planes():
-    small = scene()[:40, :60]
-    for name in pp.INTERPOLATIONS:
-        assert pp.resize_with(small, 3, name).shape == (120, 180, 3)
-    assert pp.blur_score(pp.resize_with(small, 4, "nearest")) > pp.blur_score(pp.resize_with(small, 4, "bilinear"))
+    assert pp.laplacian_map(edge)[:, 28:32].max() > 200 and pp.laplacian_map(edge)[:, :20].max() == 0
     l, a, b = pp.lab_channels(scene())
     assert l.shape == a.shape == b.shape == (240, 320)
+
+
+def test_clahe_changes_lightness_only():
     colourful = scene().copy()
     colourful[..., 2] = np.clip(colourful[..., 2].astype(int) + 60, 0, 255)
-
-    def shift(out):
-        return float(np.mean(np.hypot(*(np.asarray(x, np.float32) - y for x, y in
-                                         zip(pp.lab_channels(out)[1:], pp.lab_channels(colourful)[1:])))))
-    assert shift(pp.clahe_lab(colourful)) < shift(pp.equalize_rgb(colourful))   # LAB keeps the colours
+    before, after = pp.lab_channels(colourful), pp.lab_channels(pp.clahe_lab(colourful))
+    shift = float(np.mean(np.hypot(after[1].astype(np.float32) - before[1], after[2].astype(np.float32) - before[2])))
+    assert shift < 3                                              # a* and b* stay where they were
+    assert np.abs(after[0].astype(int) - before[0]).mean() > shift
 
 
 def test_pipeline_stages_and_enable_switch(cfg):

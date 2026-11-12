@@ -163,39 +163,6 @@ if __name__ == "__main__":
         plt.close(fig)
         print("  saved 5_face_upscale.png")
 
-    # 6. noise models and spatial filters ------------------------------------------------
-    bgr = lambda im: cv2.cvtColor(im, cv2.COLOR_GRAY2BGR) if im.ndim == 2 else im
-    small = cv2.resize(frame, (640, round(640 * frame.shape[0] / frame.shape[1])), interpolation=cv2.INTER_AREA)
-    for kind, amount, tag in (("gaussian", 15, "Gaussian noise, sigma 15"), ("sp", 8, "salt-and-pepper noise, 8 %")):
-        noisy = pp.add_noise(small, kind, amount)
-        views = {f"noisy  PSNR {pp.psnr(small, noisy):.1f} dB": noisy}
-        for label, method in (("mean 5x5", "mean"), ("Gaussian 5x5", "gaussian"), ("median 5x5", "median"),
-                              ("bilateral", "bilateral"), ("Non-Local Means", "nlm")):
-            den = pp.smooth(noisy, method, 5)
-            views[f"{label}  PSNR {pp.psnr(small, den):.1f} dB"] = den
-            metrics.append({"figure": f"filters_{kind}", "stage": label, "psnr_db": round(pp.psnr(small, den), 2),
-                            "sharpness_lapvar": round(pp.blur_score(den), 1)})
-        grid(views, out / f"6_filters_{kind}.png", f"Spatial filters on {tag}", hist=False)
-
-    # 7. frequency domain ---------------------------------------------------------------
-    blurred = cv2.GaussianBlur(small, (0, 0), 2.5)
-    low, mask = pp.frequency_filter(small, "low", 40, "gaussian")
-    high, _ = pp.frequency_filter(small, "high", 40, "gaussian")
-    grid({"luminance": bgr(pp.luminance(small)), "log magnitude spectrum": bgr(pp.fft_spectrum(small)),
-          "Gaussian low-pass H(u,v), D0 = 40": bgr((mask * 255).astype(np.uint8)), "low-pass result": bgr(low),
-          "high-pass result": bgr(high), "spectrum after Gaussian blur": bgr(pp.fft_spectrum(blurred))},
-         out / "7_frequency_domain.png", "Frequency domain: spectrum, transfer function and filtered results", hist=False)
-    for name, im in (("original", small), ("gaussian blur sigma 2.5", blurred), ("unsharp mask", pp.unsharp_mask(small, 1.0, 1.5))):
-        metrics.append({"figure": "frequency", "stage": name, "sharpness_lapvar": round(pp.blur_score(im), 1),
-                        "high_freq_energy_pct": round(100 * pp.high_frequency_energy(im), 3)})
-
-    # 8. colour: contrast on L* of LAB against per-channel RGB equalisation --------------------
-    l_ch, a_ch, b_ch = pp.lab_channels(small)
-    grid({"input": small, "L* (lightness)": bgr(l_ch), "a* (green-red)": bgr(a_ch), "b* (blue-yellow)": bgr(b_ch),
-          "CLAHE on L* only": pp.clahe_lab(small, pc["clahe_clip"], pc["clahe_grid"]),
-          "equalising B, G, R separately": pp.equalize_rgb(small)},
-         out / "8_colour_lab.png", "Colour model: enhancing lightness only keeps the colours", hist=False)
-
     pd.DataFrame(metrics).to_csv(out / "metrics.csv", index=False)
     print("  saved metrics.csv\n")
     print(pd.DataFrame(metrics).to_string(index=False))

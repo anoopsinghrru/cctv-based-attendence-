@@ -29,40 +29,6 @@ video / webcam / RTSP ─► sample 1 frame / N s ─► DIP enhancement ─► 
 
 ## 3. Image-processing pipeline
 
-### 3.0 Syllabus coverage
-
-Every unit of the course syllabus is implemented and demonstrated. "Role" says whether the
-technique is part of the attendance pipeline or is shown for analysis.
-
-| Unit | Syllabus topic | What is implemented | Role in the system | Section |
-|---|---|---|---|---|
-| 1 | Image representation, grey and colour | Luminance, BGR, LAB, HSV, YCrCb planes | Pipeline | 3.8 |
-| 1 | Sampling and quantization | Spatial subsampling, grey-level quantization | Analysis, with a recognition test | 3.9 |
-| 2 | Basic grey-level transformations | Gamma, log, negative, contrast stretching | Pipeline: automatic gamma | 3.1, 3.3 |
-| 2 | Histogram processing | Histogram, CDF, global equalisation, CLAHE | Pipeline: contrast stage | 3.2 |
-| 2 | Spatial low-pass and high-pass filtering | Mean, Gaussian, median, bilateral, NLM; Laplacian, unsharp mask, Sobel | Pipeline: denoising, sharpening, blur score | 3.6, 3.7 |
-| 2 | Frequency-domain smoothing and sharpening | 2-D DFT, ideal / Butterworth / Gaussian low- and high-pass | Analysis | 3.7 |
-| 2 | Homomorphic filtering | Log, DFT, high-emphasis filter, exponent | Optional pipeline stage (off: measured, no gain) | 3.10 |
-| 3 | Noise models, noise reduction | Gaussian and salt-and-pepper noise, noise estimation, PSNR | Pipeline: noise-adaptive denoising | 3.6 |
-| 3 | Inverse and Wiener filtering | PSF and OTF, truncated inverse filter, Wiener filter | Analysis, with a recognition test | 3.11 |
-| 3 | Colour models | CIELAB, HSV, YCrCb | Pipeline: contrast on L* only | 3.8 |
-| 3 | Pseudo-colour processing | Colour maps, intensity slicing | Pipeline output: session heat map | 3.12 |
-| 4 | Huffman, arithmetic, LZW coding | All three coders and decoders, entropy | Analysis | 3.13 |
-| 4 | JPEG standard | 8×8 DCT, quantization tables, real codec | Analysis, with a recognition test | 3.13 |
-| 4 | Erosion, dilation, opening, closing | With ellipse, rectangle and cross structuring elements | Analysis: head-count experiment | 3.14 |
-| 4 | Hole filling, connected components, thinning, skeletons | Flood-fill hole filling, labelling, Zhang-Suen thinning, morphological skeleton | Analysis: head-count experiment | 3.14 |
-| 5 | Point, line and edge detection | Laplacian point mask, four line masks, Roberts, Prewitt, Sobel, LoG, Canny | Analysis | 3.15 |
-| 5 | Thresholding | Basic global, Otsu, adaptive | Analysis | 3.15 |
-| 5 | Region-based segmentation | Seeded region growing | Analysis | 3.15 |
-| 5 | Edge linking, boundary detection, Hough transform | Contour following, (ρ, θ) accumulator, line detection | Analysis | 3.15 |
-| 6 | Pattern classes, decision-theoretic recognition | Minimum-distance (cosine) classifier with threshold and margin | Pipeline: face matching | 4, 5 |
-| 6 | Case study | The attendance system | The project | 6 |
-| – | Geometric transforms, interpolation, multi-scale | Similarity transform, four interpolators, overlapping tiles with NMS | Pipeline: alignment and tiled detection | 3.4, 3.5 |
-
-The operations are in `src/preprocess.py` and `src/dip_ops.py`, each covered by unit tests, and
-each is demonstrated on the footage in the dashboard's **DIP Lab** page: 20 topics grouped by
-unit, with the formula, adjustable parameters, before/after images and measurements.
-
 Every sampled frame passes through these stages (`src/preprocess.py`).
 
 | # | Stage | Method | Purpose |
@@ -73,6 +39,11 @@ Every sampled frame passes through these stages (`src/preprocess.py`).
 | 4 | Sharpening | Unsharp mask: img + a·(img − Gaussian(img)) | Edge definition for the detector |
 | 5 | Face crops | Lanczos-4 upscale of faces under 112 px, Laplacian-variance blur score | Reject unusable crops; lower threshold for blurry ones |
 | 6 | Tiling | 3×2 overlapping tiles (25% overlap) in addition to the full frame | Magnify distant back-row faces |
+
+After recognition, the face positions of the whole session are accumulated and saved as a
+pseudo-colour seating heat map (section 3.6). Each stage can be tried on any frame of the
+footage in the dashboard's **DIP Lab** page, with its formula, the system's settings and the
+measured effect.
 
 ### 3.1 Stage outputs
 
@@ -102,6 +73,9 @@ Global equalisation stretches the whole histogram (σ 58.8 → 72.1) and over-br
 windows. CLAHE raises contrast less (σ 63.0) but more usefully: entropy is higher (7.70 against
 7.64 bits) because detail is added locally instead of flattening large regions.
 
+CLAHE is applied to the L* (lightness) channel of CIELAB and the a* and b* colour channels are
+left untouched, so the contrast gain does not tint the image or alter skin tones.
+
 ### 3.3 Dark, noisy frames
 
 ![simulated dark frame](figures/dark_frame.png)
@@ -128,112 +102,12 @@ discarded and recovered whole from the neighbouring tile; duplicates are removed
 
 ![upscaling small faces](figures/face_upscale.png)
 
-### 3.6 Noise models and spatial filters
+Faces narrower than 112 pixels are enlarged with Lanczos interpolation before the similarity
+transform that aligns them to the 112×112 recognition template. The variance of the Laplacian of
+the aligned crop is its blur score: crops below 4 are discarded, and crops below 60 are matched
+with the lower blurry-face threshold.
 
-Noise of a known kind was added to a clean classroom frame and each smoothing filter was scored by
-PSNR against the clean frame, and by how much edge detail it kept (variance of the Laplacian).
-
-![filters on Gaussian noise](figures/filters_gaussian.png)
-
-![filters on salt-and-pepper noise](figures/filters_salt_pepper.png)
-
-| Filter (5×5) | Gaussian noise σ 15: PSNR | Edges kept (Lap. var) | Salt-and-pepper 8%: PSNR |
-|---|---|---|---|
-| Mean | 29.5 dB | 21 | 26.2 dB |
-| Gaussian | 31.3 dB | 34 | 25.6 dB |
-| Median | 30.1 dB | 70 | **31.6 dB** |
-| Bilateral | **32.6 dB** | 405 | 16.1 dB |
-| Non-Local Means | 31.1 dB | 623 | 16.3 dB |
-
-For Gaussian (sensor) noise the bilateral filter gives the best PSNR and keeps roughly ten times
-more edge detail than the linear filters, which is why it is the pipeline's denoising stage: faces
-must stay sharp for the detector. For impulse noise the order reverses: the median filter removes
-it almost completely, while the edge-preserving filters treat each impulse as an edge and keep it.
-CCTV noise in low light is of the first kind.
-
-### 3.7 Frequency domain
-
-![frequency domain](figures/frequency_domain.png)
-
-| Image | Energy outside the low-frequency disc | Blur score (Lap. var) |
-|---|---|---|
-| Original | 1.35% | 350 |
-| After Gaussian blur σ 2.5 | 0.42% | 3 |
-| After unsharp mask | 2.70% | 1310 |
-
-Blur is a low-pass operation: it removes the outer part of the spectrum, where edges and fine
-detail live. The Laplacian is a high-pass operator, so its variance collapses on a blurred image.
-That is the basis of the blur score used to discard unusable face crops, and of the unsharp mask,
-which adds back a scaled copy of the high-frequency detail. Frequency-domain filtering is used
-here for analysis; the pipeline applies the equivalent filters in the spatial domain, where they
-are cheaper for small kernels.
-
-### 3.8 Colour model
-
-![colour model](figures/colour_lab.png)
-
-CLAHE is applied to the L* (lightness) channel of CIELAB and the a* and b* colour channels are
-left untouched. Equalising B, G and R separately changes the balance between the channels and
-tints the image, which also alters skin tones the recogniser depends on.
-
-### 3.9 Sampling and quantization (Unit 1)
-
-![sampling and quantization](figures/syl_sampling_quantization.png)
-
-Recognition on 200 LFW pairs (faces 40 pixels wide) as the number of bits per channel is reduced:
-
-| Bits per channel | Grey levels | Verification accuracy | False rejects |
-|---|---|---|---|
-| 8 | 256 | 99.5% | 1.0% |
-| 4 | 16 | 99.5% | 1.0% |
-| 3 | 8 | 97.0% | 5.8% |
-| 2 | 4 | 82.5% | 34.0% |
-| 1 | 2 | 67.5% | 63.1% |
-
-Sixteen grey levels are enough; below eight the false contours destroy the facial detail. The
-spatial sampling limit is the face-size result in section 4: recognition holds down to faces
-about 20 pixels wide.
-
-### 3.10 Homomorphic filtering (Unit 2)
-
-![homomorphic filtering](figures/syl_homomorphic.png)
-
-Implemented as a switchable pipeline stage (`preprocess.homomorphic` in `config.yaml`) and
-measured against the 1,177 labelled students of every fourth dataset frame, both as recorded and
-with a simulated light fall-off from one side:
-
-| Lighting | Stage | Lighting unevenness | Students detected |
-|---|---|---|---|
-| As recorded | Pipeline | 42.2 | 90.2% |
-| As recorded | Pipeline + homomorphic | 27.2 | 88.3% |
-| One-sided | Pipeline | 37.1 | 78.7% |
-| One-sided | Pipeline + homomorphic | 24.5 | 77.5% |
-
-The filter does what it is designed for: lighting unevenness (the spread of block brightness)
-falls by a third. But it does not help the detector, which is slightly worse with it, so the
-stage is left off by default. CLAHE already handles local contrast, and the neural detector is
-fairly tolerant of slow illumination changes.
-
-### 3.11 Inverse and Wiener filtering (Unit 3)
-
-![restoration](figures/syl_restoration.png)
-
-On the frame above (Gaussian blur σ 2 plus noise) inverse filtering lowers the PSNR, because it
-divides the noise by small values of H, while the Wiener filter raises it. The same holds for
-recognition on 200 LFW pairs blurred with a known PSF (σ 1.6) and noise:
-
-| Restoration before recognition | Verification accuracy | False rejects |
-|---|---|---|
-| None | 94.0% | 11.7% |
-| Inverse filter | 92.5% | 14.6% |
-| Wiener filter, K = 0.01 | 96.0% | 7.8% |
-| Wiener filter, K = 0.05 | 96.5% | 6.8% |
-
-Wiener filtering recovers part of the loss; inverse filtering makes it worse. This needs the
-blur to be known exactly, which a real camera does not provide, so restoration is demonstrated
-but not used in the attendance pipeline.
-
-### 3.12 Pseudo-colour: the session heat map (Unit 3)
+### 3.6 Seating heat map
 
 ![session heat map](figures/heatmap_seminar.jpg)
 
@@ -241,76 +115,7 @@ Every attendance session accumulates every detected face, as an ellipse of its o
 coarse grid and saves the result as a pseudo-colour overlay (red = seen in most frames). It is
 meaningful for a fixed camera; a camera that moves during the recording smears the map. It shows where students
 sat and which seats the camera covers poorly, and appears in the session result under "Seating
-heat map". This is the one new technique that became part of the system's output.
-
-### 3.13 Compression (Unit 4)
-
-Lossless coding of one 320×180 grey frame, with the coders written out in `src/dip_ops.py`
-(each has a decoder and a test that the round trip is exact):
-
-| Method | Bits per pixel | Compression ratio |
-|---|---|---|
-| Uncompressed | 8.000 | 1.00 |
-| Entropy (lower bound for symbol coding) | 7.429 | 1.08 |
-| Huffman coding | 7.463 | 1.07 |
-| Arithmetic coding | 7.429 | 1.08 |
-| LZW, 12-bit codes | 9.102 | 0.88 |
-| PNG (prediction, then LZ77 and Huffman) | 4.407 | 1.82 |
-
-Huffman coding comes within 0.03 bits of the entropy and arithmetic coding reaches it, but a
-camera frame uses its grey levels almost evenly, so removing coding redundancy alone gains only
-8%. LZW makes the file larger, because a noisy natural image has few repeated strings. PNG does
-far better by first predicting each pixel from its neighbours, which removes the spatial
-(inter-pixel) redundancy.
-
-![JPEG](figures/syl_jpeg.png)
-
-![JPEG accuracy](figures/syl_jpeg_accuracy.png)
-
-JPEG removes psychovisual redundancy by quantizing the DCT coefficients. Recognition on 200 LFW
-pairs after compressing the frame:
-
-| JPEG quality | Verification accuracy | False rejects | Faces detected |
-|---|---|---|---|
-| 95 | 99.5% | 1.0% | 100% |
-| 70 | 98.5% | 2.9% | 100% |
-| 40 | 96.0% | 7.8% | 100% |
-| 20 | 85.0% | 29.1% | 100% |
-| 10 | 66.5% | 65.0% | 100% |
-| 5 | 55.5% | 86.4% | 79% |
-
-Recognition is safe down to a quality of about 40 and collapses below 20, even though faces are
-still detected. This matters in practice: CCTV recorders set to a low bitrate work in that range.
-
-### 3.14 Morphological processing (Unit 4)
-
-![morphology](figures/syl_morphology.png)
-
-A classical people count was built from the syllabus operations: skin-colour thresholding in
-the Cr and Cb planes, opening, closing, hole filling, connected components, and a size and
-shape filter. Against the labelled number of students in 121 frames:
-
-| Method | Mean count (true mean 9.73) | Mean absolute error | Correlation with the true count |
-|---|---|---|---|
-| Skin segmentation + morphology | 5.41 | 4.84 | 0.11 |
-| Face detector (SCRFD) | 9.10 | 0.98 | 0.92 |
-
-The classical count is not usable in a classroom: wooden desks, hands and arms are skin-coloured
-too, and neighbouring faces merge into one region. It is kept as a demonstration of the
-operations and as a measured comparison with the learned detector, and is not used for
-attendance. Thinning and skeletons are implemented and demonstrated on the same masks.
-
-### 3.15 Segmentation (Unit 5)
-
-![edge detection](figures/syl_edges.png)
-
-![Hough transform and thresholding](figures/syl_segmentation.png)
-
-Roberts, Prewitt, Sobel, Laplacian of Gaussian and Canny edge maps, the point and line masks,
-basic global / Otsu / adaptive thresholding, seeded region growing, contour following and the
-Hough transform are implemented and shown on the footage. In a classroom frame the strongest
-Hough lines are desk and bench edges, and their tilt indicates how the camera is rotated. These
-are demonstrations: the attendance pipeline segments faces with the learned detector.
+heat map".
 
 ## 4. Recognition accuracy
 
@@ -489,16 +294,16 @@ GTX 1050 against 1.99 s on CPU. At one frame every 3 s both are faster than real
 
 ## 7. Testing
 
-`python -m pytest` runs 99 automated tests in about a minute and a half.
+`python -m pytest` runs 72 automated tests in about a minute.
 
 | Area | Tests | What is checked |
 |---|---|---|
-| Image processing | 18 | gamma trigger and clamp, intensity transforms, CDF and equalisation, noise models and PSNR, median vs linear vs bilateral filters, Laplacian and Sobel, DFT spectrum and frequency filters, interpolation, LAB colour, CLAHE vs global HE, unsharp, blur score, tile coverage |
+| Image processing | 14 | histogram and mean, gamma trigger and clamp, noise estimate, bilateral and NLM denoising, CLAHE vs global equalisation, CLAHE changes lightness only, unsharp, blur score, Lanczos upscale, tile coverage, pipeline stages and the enable switch |
+| Seating heat map | 2 | one count per face over the area it covers, colour only where faces were seen |
 | Timetable and database | 14 | slot lookup and boundaries, midnight-crossing slots, CSV round trip, batch-restricted gallery, cascade deletes |
 | Attendance rules | 22 | Present / Late / Absent at each boundary, thresholds, margin, one-face-per-student, unknown merging, export, virtual clock, time-lapse |
 | Real models | 11 | alignment maths, NMS, face counts, landmarks, same / different person scores, small faces, tiled detection, enrolment, an end-to-end recorded session |
-| Syllabus operations | 25 | sampling and quantization, homomorphic filter, PSFs, inverse and Wiener filtering, pseudo-colour, Huffman / arithmetic / LZW round trips against entropy, JPEG tables and DCT, erosion to skeletons, head count, point / line / edge masks, Otsu against OpenCV, region growing, Hough peaks, contours |
-| Dashboard | 9 | every page loads; all 20 DIP Lab topics render; navigation, roster search, add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
+| Dashboard | 9 | every page loads; all 9 DIP Lab steps render; navigation, roster search, add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
 
 The attendance rules are tested with a scripted fake face engine, so each rule is checked exactly
 rather than inferred from footage. Writing the suite found and fixed a real defect: class slots
@@ -519,9 +324,6 @@ running past midnight were never matched.
 - **Face size.** Below about 20 px recognition degrades, and faces turned away or looking down
   are missed. Camera placement (front of the room, 1080p or better) matters more than any filter.
 - **No liveness check**: a printed photo held to the camera would be accepted.
-- **Several syllabus techniques did not improve attendance.** Homomorphic filtering did not raise
-  detection, the morphological head count is unreliable, and restoration needs a known blur.
-  They are implemented, measured and demonstrated, but the pipeline does not depend on them.
 - **Privacy**: face data is biometric. Consent, retention and access rules are needed before use
   on real students.
 

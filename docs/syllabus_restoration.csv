@@ -1,5 +1,0 @@
-restoration,detected_%,accuracy_%,false_reject_%,false_accept_%
-none (blurred + noise),100.0,94.0,11.7,0.0
-inverse filter,100.0,92.5,14.6,0.0
-"Wiener filter, K = 0.01",100.0,96.0,7.8,0.0
-"Wiener filter, K = 0.05",100.0,96.5,6.8,0.0

@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from . import preprocess as pp
-from .dip_ops import add_boxes, heat_overlay, new_heat
+from .heatmap import add_boxes, heat_overlay, new_heat
 from .face_engine import draw_faces
 from .timetable import slot_bounds
 
