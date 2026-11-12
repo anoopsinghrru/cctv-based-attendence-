@@ -9,7 +9,9 @@ import streamlit as st
 from src import preprocess as pp
 from src.face_engine import ARCFACE_DST, draw_faces, similarity_transform
 from ui import common as c
+from ui import dip_lab_more as more
 from ui import theme
+from ui.lab_helpers import contrast, fit, gallery, hist_frame, measure, rgb
 
 TOPICS = ["Intensity transformations", "Histogram processing", "Noise and spatial filtering",
           "Sharpening and blur measure", "Frequency domain", "Colour models",
@@ -43,50 +45,6 @@ def frame_count(path, mtime):
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 1)
     cap.release()
     return max(n, 1)
-
-
-def fit(img, width=880):
-    return cv2.resize(img, (width, round(img.shape[0] * width / img.shape[1])), interpolation=cv2.INTER_AREA) \
-        if img.shape[1] > width else img
-
-
-def rgb(img):
-    return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB if img.ndim == 2 else cv2.COLOR_BGR2RGB)
-
-
-def gallery(images, per_row=3):
-    """Captioned images in a grid. `images` is a dict caption -> image."""
-    items = list(images.items())
-    for i in range(0, len(items), per_row):
-        cols = st.columns(per_row)
-        for col, (caption, img) in zip(cols, items[i:i + per_row]):
-            col.image(rgb(img), caption=caption, width="stretch")
-
-
-def hist_frame(images, fn=pp.histogram, scale=100.0):
-    return pd.concat([pd.DataFrame({"level": np.arange(256), "value": fn(img) * scale, "image": name})
-                      for name, img in images.items()], ignore_index=True)
-
-
-def entropy(img):
-    h = pp.histogram(img)
-    h = h[h > 0]
-    return float(-(h * np.log2(h)).sum())
-
-
-def contrast(img):
-    return float(pp.luminance(img).std())
-
-
-def measure(images, extra=None):
-    rows = []
-    for name, img in images.items():
-        row = {"Image": name, "Mean": round(pp.mean_brightness(img), 1), "Contrast (σ)": round(contrast(img), 1),
-               "Entropy (bits)": round(entropy(img), 2), "Sharpness (Lap. var)": round(pp.blur_score(img), 1)}
-        if extra:
-            row.update(extra(name, img))
-        rows.append(row)
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
 # ------------------------------------------------------------------ topics
@@ -347,11 +305,27 @@ def pipeline(frame, full):
 
 
 RENDER = dict(zip(TOPICS, [intensity, histogram, filtering, sharpening, frequency, colour, geometric, tiling, pipeline]))
+RENDER.update(more.RENDER)
+ROLE.update(more.ROLE)
+
+# every topic, grouped by the unit of the course syllabus it belongs to
+UNITS = {
+    "Unit 1 · Image fundamentals": ["Sampling and quantization"],
+    "Unit 2 · Enhancement, spatial and frequency": ["Intensity transformations", "Histogram processing", "Sharpening and blur measure",
+                                                   "Frequency domain", "Homomorphic filtering"],
+    "Unit 3 · Restoration and colour": ["Noise and spatial filtering", "Inverse and Wiener filtering", "Colour models",
+                                        "Pseudo-colour processing"],
+    "Unit 4 · Compression and morphology": ["Lossless compression", "JPEG compression", "Morphological processing"],
+    "Unit 5 · Segmentation": ["Point, line and edge detection", "Thresholding and region growing", "Hough transform and boundaries"],
+    "Unit 6 · Recognition and case study": ["Recognition as classification", "Geometric transforms and interpolation",
+                                            "Multi-scale tiling", "Complete pipeline"],
+}
+TOPICS = [t for topics in UNITS.values() for t in topics]
 
 
 def render():
-    theme.header("DIP Lab", "The digital image processing fundamentals this system is built on, each demonstrated "
-                            "live on a frame of the footage with its formula, parameters and measurements.")
+    theme.header("DIP Lab", "Every unit of the Digital Image Processing syllabus, demonstrated live on a frame of the "
+                            "footage with its formula, parameters and measurements.")
     samples = sorted(c.SAMPLES.rglob("*.mp4"))
     if not samples:
         with theme.card("nosrc"):
@@ -372,7 +346,9 @@ def render():
                 st.caption(f"{full.shape[1]}×{full.shape[0]} px · mean brightness {pp.mean_brightness(full):.0f}")
         with theme.card("topics"):
             st.subheader("Topic")
-            topic = st.radio("Topic", TOPICS, label_visibility="collapsed")
+            unit = st.selectbox("Unit", list(UNITS), index=1)
+            topic = st.radio("Topic", UNITS[unit], label_visibility="collapsed")
+            st.caption(f"{len(TOPICS)} topics across the {len(UNITS)} units of the syllabus")
     with right:
         if full is None:
             st.error("That frame could not be read.", icon=":material/error:")

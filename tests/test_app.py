@@ -41,6 +41,11 @@ def app_cfg(tmp_path, monkeypatch):
     st.cache_resource.clear()
 
 
+def get_engine():
+    from src.face_engine import FaceEngine
+    return FaceEngine(load_config(ROOT / "config.yaml"))
+
+
 def go(at, page):
     at.session_state["_goto"] = page
     at.run()
@@ -84,16 +89,27 @@ def test_every_page_loads_on_an_empty_installation(app_cfg):
 
 
 def test_dip_lab_renders_every_topic(app_cfg):
-    from ui.dip_lab import TOPICS
+    from ui.dip_lab import TOPICS, UNITS
+    assert len(UNITS) == 6 and len(TOPICS) == 20
+    db = Database(app_cfg["paths"]["db"])              # a gallery, so the recognition topic has classes
+    db.sync_students_csv(app_cfg["paths"]["students"])
+    enroll_photo(get_engine(), db, "T3", cv2.imread(str(TEST_SET / "lin-manuel-miranda.png")), "p.png")
     at = launch("dip")
     assert at.title[0].value == "DIP Lab"
-    for topic in TOPICS:
-        by_label(at.radio, "Topic").set_value(topic).run()
-        assert not at.exception, f"{topic}: {at.exception}"
-        assert topic in [s.value for s in at.subheader]
-    # a control changes the result: more noise lowers the measured quality
+    for unit, topics in UNITS.items():
+        by_label(at.selectbox, "Unit").set_value(unit).run()
+        for topic in topics:
+            by_label(at.radio, "Topic").set_value(topic).run()
+            assert not at.exception, f"{topic}: {at.exception}"
+            assert topic in [s.value for s in at.subheader]
+    # controls change the result
+    by_label(at.selectbox, "Unit").set_value("Unit 3 · Restoration and colour").run()
     by_label(at.radio, "Topic").set_value("Noise and spatial filtering").run()
     by_label(at.slider, "Noise level").set_value(30.0).run()
+    assert not at.exception
+    by_label(at.selectbox, "Unit").set_value("Unit 4 · Compression and morphology").run()
+    by_label(at.radio, "Topic").set_value("JPEG compression").run()
+    by_label(at.slider, "JPEG quality").set_value(5).run()
     assert not at.exception
 
 

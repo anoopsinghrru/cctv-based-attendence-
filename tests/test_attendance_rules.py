@@ -51,6 +51,9 @@ def test_present_absent_and_snapshot(setup):
     assert res.loc["S1", "status"] == "Present" and res.loc["S1", "sightings"] == 20
     assert res.loc["S1", "buckets"] == 10 and res.loc["S1", "best_score"] > 0.99
     assert Path(res.loc["S1", "snapshot"]).exists()
+    heat = cv2.imread(str(proc.snap_dir / "heatmap.jpg"))             # pseudo-colour seating map
+    assert heat is not None and heat.shape[:2] == FRAME.shape[:2]
+    assert not np.array_equal(heat[80, 130], heat[200, 350])           # coloured at the face, plain elsewhere
     assert res.loc["S2", "status"] == "Absent" and res.loc["S2", "sightings"] == 0
     assert len(res) == 3                                # the other batch's student is not listed
 

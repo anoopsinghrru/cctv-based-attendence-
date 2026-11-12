@@ -1,0 +1,7 @@
+method,bits_per_pixel,ratio
+Uncompressed,8.0,1.0
+Entropy (lower bound for these methods),7.429,1.08
+Huffman coding,7.463,1.07
+Arithmetic coding,7.429,1.08
+"LZW, 12-bit codes",9.102,0.88
+"PNG (LZ77 + Huffman, with prediction)",4.407,1.82

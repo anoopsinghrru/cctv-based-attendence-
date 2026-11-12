@@ -155,8 +155,17 @@ def show_session(session_id, key=""):
              if r.snapshot and Path(r.snapshot).exists()]
     unk = d.unknowns(session_id)
     unk = unk[unk["snapshot"].map(lambda p: Path(p).exists())] if len(unk) else unk
-    if snaps or len(unk):
-        tabs = st.tabs([f"Recognised students ({len(snaps)})", f"Unknown faces ({len(unk)})"])
+    heat = Path(paths()["snapshots"]) / f"session_{session_id}" / "heatmap.jpg"
+    if snaps or len(unk) or heat.exists():
+        tabs = st.tabs([f"Recognised students ({len(snaps)})", f"Unknown faces ({len(unk)})", "Seating heat map"])
+        with tabs[2]:
+            if heat.exists():
+                st.image(str(heat), width="stretch")
+                st.caption("Where faces were seen during the session, in pseudo-colour: red marks the places "
+                           "seen in most frames, blue those seen only a few times. Meaningful for a fixed "
+                           "camera; if the camera moved during the recording the map is smeared.")
+            else:
+                st.caption("No heat map was saved for this session.")
         with tabs[0]:
             if snaps:
                 cols = st.columns(8)

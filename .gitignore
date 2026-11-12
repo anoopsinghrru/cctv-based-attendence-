@@ -65,8 +65,7 @@ config.local.yaml
 .vscode/
 .idea/
 *.swp
-.claude/*
-!.claude/launch.json
+.claude/
 node_modules/
 Thumbs.db
 desktop.ini

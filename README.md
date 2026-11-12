@@ -37,7 +37,8 @@ enrolled photos, and each student is marked Present, Late or Absent automaticall
   cannot mark a student present.
 - **Dashboard** to run a session on a recording, webcam or RTSP stream, manage students and the
   timetable, read reports and export Excel.
-- **DIP Lab** page that demonstrates each image-processing fundamental live on the footage.
+- **Seating heat map** for every session: a pseudo-colour map of where faces were seen.
+- **DIP Lab** page that demonstrates every unit of the course syllabus live on the footage.
 
 The face detector and recogniser are pretrained models used as they are. The project's own work
 is the image-processing pipeline, the matching and attendance logic, the dashboard and the
@@ -52,7 +53,8 @@ evaluation.
 | Strangers accepted as a student, class of 40, at the match threshold | 0.00% |
 | Faces found in a seminar frame: full frame only vs with tiles | 23 vs 41 |
 | Time per 1080p frame with tiling: GTX 1050 vs CPU | 0.36 s vs 2.0 s |
-| Automated tests | 74, all passing |
+| Recognition after JPEG compression: quality 70 / 40 / 20 | 98.5% / 96.0% / 85.0% |
+| Automated tests | 99, all passing |
 
 Details, per-condition tables and the cases where it fails are in the report.
 
@@ -111,11 +113,21 @@ python -m streamlit run app.py
 
 ### DIP Lab
 
-Nine topics, each with its formula, adjustable parameters, before/after images, charts and
-measurements, and a note saying whether it is a pipeline stage or shown for analysis:
-intensity transformations, histogram processing, noise and spatial filtering, sharpening and the
-blur measure, the frequency domain, colour models, geometric transforms and interpolation,
-multi-scale tiling, and the complete pipeline.
+Twenty topics grouped by the six units of the course syllabus. Each has its formula, adjustable
+parameters, before/after images, charts and measurements, and says whether it is a pipeline stage
+or shown for analysis.
+
+| Unit | Topics |
+|---|---|
+| 1 Image fundamentals | Sampling and quantization |
+| 2 Enhancement, spatial and frequency | Intensity transformations, histogram processing, sharpening and the blur measure, frequency domain, homomorphic filtering |
+| 3 Restoration and colour | Noise and spatial filtering, inverse and Wiener filtering, colour models, pseudo-colour |
+| 4 Compression and morphology | Huffman / arithmetic / LZW coding, JPEG, morphological processing |
+| 5 Segmentation | Point, line and edge detection; thresholding and region growing; Hough transform and boundaries |
+| 6 Recognition and case study | Recognition as classification, geometric transforms, multi-scale tiling, the complete pipeline |
+
+Not every technique helps attendance, and the page says so where it was measured: homomorphic
+filtering did not raise detection, and the morphological head count is unreliable in a classroom.
 
 ![DIP Lab](docs/figures/screenshot_dip_lab.jpg)
 
@@ -209,10 +221,11 @@ Things to state when presenting the demo:
 ## Evaluation and tests
 
 ```
-python -m pytest                        # 74 tests, about a minute
+python -m pytest                        # 99 tests, about a minute and a half
 python scripts/evaluate.py              # verification accuracy on LFW in 16 conditions
 python scripts/evaluate_open_set.py     # threshold choice for a class-sized gallery
 python scripts/evaluate_dataset.py      # detection and identification against the dataset's labels
+python scripts/evaluate_syllabus.py     # homomorphic, head count, JPEG, restoration, quantization, lossless coding
 python scripts/dip_demo.py --video data/samples/kaggle_clips/owais-class-2.mp4 --at 10
 python scripts/rebuild_demo_sessions.py # re-run every demo session
 ```
@@ -226,7 +239,8 @@ are missing. Set `DIP_CONFIG` to point the code at another `config.yaml`.
 
 | Path | Role |
 |---|---|
-| `src/preprocess.py` | Image-processing operations: gamma, histogram, filters, CLAHE, sharpening, DFT, interpolation, tiles |
+| `src/preprocess.py` | Pipeline operations: gamma, histogram, filters, CLAHE, sharpening, DFT, homomorphic filter, interpolation, tiles |
+| `src/dip_ops.py` | The rest of the syllabus: sampling and quantization, restoration, pseudo-colour, Huffman / arithmetic / LZW / JPEG, morphology, segmentation, Hough |
 | `src/face_engine.py` | SCRFD decoding (strides 8/16/32, 2 anchors), NMS, tiled detection, alignment, ArcFace embedding |
 | `src/timetable.py` | Room and time to class slot, including slots that cross midnight |
 | `src/database.py` | SQLite: students, embeddings, sessions, attendance, unknown faces |
@@ -277,6 +291,8 @@ Face data is biometric. Enrol people only with their consent. The figures and sc
 - Faces under about 20 pixels, turned away, or looking down are often missed.
 - The match thresholds were tuned on LFW, which is mostly frontal photographs.
 - No liveness check: a printed photo held to the camera would be accepted.
+- Homomorphic filtering, restoration and the morphological head count are implemented and
+  measured but did not improve attendance, so the pipeline does not use them.
 
 ## Sources and credits
 

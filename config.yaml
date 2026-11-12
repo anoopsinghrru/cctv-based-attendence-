@@ -31,6 +31,10 @@ preprocess:
   enabled: true
   dark_mean: 95                 # mean luminance under this => apply gamma correction
   target_mean: 125              # gamma is chosen to bring the mean here
+  homomorphic: false            # optional stage: even out one-sided lighting (see report 3.9)
+  homomorphic_low: 0.6          # gain for slow illumination changes (< 1 flattens them)
+  homomorphic_high: 1.5         # gain for detail
+  homomorphic_cutoff: 30.0
   denoise: bilateral            # bilateral | nlm | none
   noise_ok: 4.0                 # noise sigma above this => stronger denoise, gentler CLAHE/sharpen
   bilateral_d: 5

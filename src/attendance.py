@@ -9,10 +9,12 @@ import numpy as np
 import pandas as pd
 
 from . import preprocess as pp
+from .dip_ops import add_boxes, heat_overlay, new_heat
 from .face_engine import draw_faces
 from .timetable import slot_bounds
 
 GREEN, RED = (80, 220, 80), (60, 60, 235)
+HEAT_CELL = 8       # frame pixels per heat-map cell
 
 
 def enroll_photo(engine, db, roll_no, img, source=""):
@@ -68,6 +70,8 @@ class SessionProcessor:
         self.frames = 0
         self.first_t = self.last_t = None
         self.finalized = False
+        self.heat = None      # where faces were seen, accumulated on a coarse grid (pseudo-colour map)
+        self.backdrop = None  # a small copy of the latest frame to draw the heat map on
 
     # -------------------------------------------------------------- matching
     def match(self, faces):
@@ -113,6 +117,11 @@ class SessionProcessor:
         self.frames += 1
         self.first_t = self.first_t or t
         self.last_t = t
+        h, w = frame.shape[:2]
+        if self.heat is None or self.heat.shape != new_heat(frame.shape, HEAT_CELL).shape:
+            self.heat = new_heat(frame.shape, HEAT_CELL)
+        add_boxes(self.heat, [f.bbox for f in faces], HEAT_CELL)
+        self.backdrop = cv2.resize(frame, (min(w, 960), round(h * min(w, 960) / w)), interpolation=cv2.INTER_AREA)
         labels, colors = [], []
         for f, (roll, score, nearest) in zip(faces, matches):
             if roll:
@@ -165,6 +174,28 @@ class SessionProcessor:
         """Merge unknown entries that turned out to be the same person, and drop one-off
         detections, so the unknown list approximates a head count instead of a sighting log."""
         import os
+        import shutil
+
+        def discard(path):
+            try:
+                os.remove(path)
+            except OSError:             # locked by a viewer or a virus scanner: leave the stray file
+                pass
+
+        def move(src, dst):
+            """Replace dst with src. Windows can briefly lock a file that was just written."""
+            for attempt in range(4):
+                try:
+                    os.replace(src, dst)
+                    return
+                except OSError:
+                    time.sleep(0.15 * (attempt + 1))
+            try:
+                shutil.copyfile(src, dst)
+            except OSError:
+                return
+            discard(src)
+
         merged = []
         for u in sorted(self.unknown, key=lambda x: -x["sightings"]):
             home = next((m for m in merged if float(m["emb"] @ u["emb"]) > 0.40), None)
@@ -176,17 +207,26 @@ class SessionProcessor:
             home["sightings"] += u["sightings"]
             home["seen_at"] = min(home["seen_at"], u["seen_at"])
             if u["size"] > home["size"]:            # keep the larger, clearer snapshot
-                os.replace(u["snapshot"], home["snapshot"])
+                move(u["snapshot"], home["snapshot"])
                 home["size"] = u["size"]
-            elif os.path.exists(u["snapshot"]):
-                os.remove(u["snapshot"])
+            else:
+                discard(u["snapshot"])
         keep = []
         for u in merged:
             if u["sightings"] >= 2 or self.frames < 5:
                 keep.append(u)
-            elif os.path.exists(u["snapshot"]):
-                os.remove(u["snapshot"])
+            else:
+                discard(u["snapshot"])
         self.unknown = keep
+
+    def save_heatmap(self):
+        """Pseudo-colour map of where faces were seen during the session (hot = seen most often)."""
+        if self.heat is None or self.backdrop is None or not self.heat.any():
+            return None
+        smooth = cv2.GaussianBlur(self.heat, (0, 0), 2.0)
+        path = self.snap_dir / "heatmap.jpg"
+        cv2.imwrite(str(path), heat_overlay(self.backdrop, smooth))
+        return str(path)
 
     # -------------------------------------------------------------- decision
     def finalize(self):
@@ -214,6 +254,7 @@ class SessionProcessor:
                     row["status"] = "Late" if late else "Present"
             rows.append(row)
         self.db.save_results(self.session_id, self.frames, rows, self.unknown)
+        self.save_heatmap()
         self.finalized = True
         return pd.DataFrame(rows)
 

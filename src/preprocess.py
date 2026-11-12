@@ -255,6 +255,38 @@ def frequency_filter(img, kind="low", cutoff=40.0, profile="gaussian"):
     return out.clip(0, 255).astype(np.uint8), mask
 
 
+def homomorphic_parts(img, gamma_low=0.6, gamma_high=1.5, cutoff=30.0, c=1.0):
+    """Homomorphic filtering of the lightness channel. Returns (image, H).
+
+    An image is illumination x reflectance. Taking the log turns the product into a sum, so a
+    filter that attenuates low frequencies (slow illumination changes, gain gamma_low < 1) and
+    boosts high ones (reflectance detail, gain gamma_high > 1) evens out the lighting:
+        H(u, v) = (gH - gL) * (1 - exp(-c * D^2 / D0^2)) + gL
+    The result is rescaled to the input's mean and spread, so only the lighting balance changes.
+    """
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    lum = lab[..., 0].astype(np.float32)
+    h, w = lum.shape
+    v, u = np.mgrid[:h, :w]
+    d2 = (u - w / 2.0) ** 2 + (v - h / 2.0) ** 2
+    H = ((gamma_high - gamma_low) * (1.0 - np.exp(-c * d2 / (float(cutoff) ** 2))) + gamma_low).astype(np.float32)
+    spectrum = np.fft.fftshift(np.fft.fft2(np.log1p(lum)))
+    out = np.expm1(np.real(np.fft.ifft2(np.fft.ifftshift(spectrum * H))))
+    out = (out - out.mean()) / max(float(out.std()), 1e-6) * float(lum.std()) + float(lum.mean())
+    lab[..., 0] = np.clip(out, 0, 255).astype(np.uint8)
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR), H
+
+
+def homomorphic(img, gamma_low=0.6, gamma_high=1.5, cutoff=30.0):
+    return homomorphic_parts(img, gamma_low, gamma_high, cutoff)[0]
+
+
+def illumination_spread(img, grid=8):
+    """How uneven the lighting is: standard deviation of the mean brightness of a grid of blocks."""
+    g = cv2.resize(luminance(img), (grid, grid), interpolation=cv2.INTER_AREA).astype(np.float32)
+    return float(g.std())
+
+
 def high_frequency_energy(img, cutoff=30.0):
     """Share of spectral energy outside a low-frequency disc - falls when an image is blurred."""
     f = np.fft.fftshift(np.fft.fft2(luminance(img).astype(np.float32)))
@@ -286,6 +318,10 @@ def run_stages(img, pcfg):
     stages["original"] = img
     out, gamma = auto_gamma(img, pcfg["dark_mean"], pcfg["target_mean"])
     stages[f"gamma ({gamma:.2f})"] = out
+    if pcfg.get("homomorphic", False):                  # optional: even out one-sided lighting
+        out = homomorphic(out, pcfg.get("homomorphic_low", 0.6), pcfg.get("homomorphic_high", 1.5),
+                          pcfg.get("homomorphic_cutoff", 30.0))
+        stages["homomorphic"] = out
     # Brightening a dark frame also amplifies its noise, so the filter strength follows the
     # measured noise level; contrast and sharpening are eased off to avoid boosting it again.
     noise = estimate_noise(out)

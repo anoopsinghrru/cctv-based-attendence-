@@ -1,0 +1,3 @@
+method,labelled_mean,mean_count,mean_abs_error,correlation
+Skin segmentation + morphology,9.73,5.41,4.84,0.11
+Face detector (SCRFD),9.73,9.1,0.98,0.92
