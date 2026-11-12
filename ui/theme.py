@@ -132,6 +132,27 @@ def trend(df, x="date", value="attendance"):
     st.altair_chart(_base(chart, 230), width="stretch")
 
 
+SERIES = ["#98A2B3", PRIMARY, "#12B76A", "#F79009", "#F04438", "#7A5AF8"]
+
+
+def lines(df, x, y, series, x_title, y_title, height=220, area=False):
+    """Several named curves on one chart (histograms, transfer functions, CDFs)."""
+    names = list(dict.fromkeys(df[series]))
+    enc = dict(x=alt.X(f"{x}:Q", title=x_title), y=alt.Y(f"{y}:Q", title=y_title),
+               color=alt.Color(f"{series}:N", sort=names, scale=alt.Scale(domain=names, range=SERIES[:len(names)]),
+                               legend=alt.Legend(title=None, orient="top")))
+    mark = alt.Chart(df).mark_area(opacity=0.35, line=True) if area else alt.Chart(df).mark_line(strokeWidth=2)
+    st.altair_chart(_base(mark.encode(**enc), height), width="stretch")
+
+
+def bars(df, category, value, value_title, height=None, fmt=".1f"):
+    """Horizontal bars of any metric per category, in the given order."""
+    chart = alt.Chart(df).mark_bar(cornerRadiusEnd=5, color=PRIMARY, size=18).encode(
+        x=alt.X(f"{value}:Q", title=value_title), y=alt.Y(f"{category}:N", sort=None, title=None),
+        tooltip=[alt.Tooltip(f"{category}:N"), alt.Tooltip(f"{value}:Q", format=fmt, title=value_title)])
+    st.altair_chart(_base(chart, height or max(110, 34 * len(df) + 40)), width="stretch")
+
+
 def donut(counts, height=210):
     """Present / Late / Absent split. `counts` is a dict."""
     df = pd.DataFrame({"status": list(STATUS), "count": [int(counts.get(s, 0)) for s in STATUS]})

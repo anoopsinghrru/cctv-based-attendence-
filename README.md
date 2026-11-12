@@ -19,7 +19,7 @@ Put `det_10g.onnx` and `w600k_r50.onnx` (from InsightFace `buffalo_l.zip`, relea
 
 ```
 python -m streamlit run app.py                 # dashboard
-python -m pytest                               # 66 automated tests (about 40 s)
+python -m pytest                               # 74 automated tests (about a minute)
 python scripts/rebuild_demo_sessions.py        # re-run every demo session from scratch
 python scripts/evaluate.py                     # verification accuracy on the LFW benchmark
 python scripts/evaluate_open_set.py            # threshold choice for a class-sized gallery
@@ -59,6 +59,7 @@ python scripts/get_sample_video.py --test-set
 python scripts/build_clips_from_frames.py --frames data/samples/kaggle/engagement/dataset/images --out data/samples/kaggle_clips
 python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/owais-class-1.mp4 --batch BSCS-A --prefix A --every 1 --min-face 30 --min-samples 6 --photos 10
 python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/taimoor-class-2.mp4 --batch BSCS-B --prefix B --every 1 --min-face 30 --min-samples 6 --photos 10
+python scripts/apply_names.py
 python scripts/simulate_late_arrival.py --video data/samples/kaggle_clips/composite_long_class.mp4 --roll B002 --until 20
 python scripts/rebuild_demo_sessions.py --yes
 ```
@@ -73,6 +74,20 @@ Staged demo effects, to be presented as such: both "Late" students are simulated
 run with `--late-after 1`; BSCS-B: first 13 minutes of a 40-minute time-lapse, at the real
 10-minute threshold). The BSCS-B long class is three separate recordings played as one.
 
+Student names in the demo are invented (`data/demo_names.csv`, applied with
+`scripts/apply_names.py`), because the people in the public footage are not identified. To use a
+real class list, pass your own CSV of `roll_no,name` to that script or edit names on the Students page.
+
+## DIP Lab
+
+The dashboard's **DIP Lab** page demonstrates each image-processing fundamental on a chosen frame
+of the footage: intensity transformations, histogram processing, noise and spatial filtering,
+sharpening and the blur measure, the frequency domain, colour models, geometric transforms and
+interpolation, multi-scale tiling, and the complete pipeline. Each topic shows the formula,
+adjustable parameters, before/after images, charts and measurements, and states whether it is a
+pipeline stage or shown for analysis. `scripts/dip_demo.py` writes the same comparisons as
+figures for the report.
+
 ## Layout
 
 | File | Role |
@@ -83,7 +98,7 @@ run with `--late-after 1`; BSCS-B: first 13 minutes of a 40-minute time-lapse, a
 | `src/database.py` | SQLite: students, embeddings, sessions, attendance, unknown faces |
 | `src/attendance.py` | matching, per-frame processing, Present / Late / Absent rules, recorded and live runners, export |
 | `app.py` | Dashboard shell ("AttendVision"): sidebar navigation, theme, page routing |
-| `ui/` | One module per page — Overview, Take attendance, Students, Timetable, Reports, System — plus `theme.py` (styling, charts) and `common.py` (shared data helpers, session result panel) |
+| `ui/` | One module per page — Overview, Take attendance, Students, Timetable, Reports, DIP Lab, System — plus `theme.py` (styling, charts) and `common.py` (shared data helpers, session result panel) |
 | `.streamlit/config.toml`, `assets/` | Colour theme and logo |
 | `scripts/` | enroll, run_session, auto_enroll_from_video, dip_demo, evaluate, get_sample_video, build_clips_from_frames, simulate_late_arrival, rebuild_demo_sessions |
 | `tests/` | unit tests, real-model tests, and headless dashboard tests |

@@ -29,6 +29,25 @@ video / webcam / RTSP ─► sample 1 frame / N s ─► DIP enhancement ─► 
 
 ## 3. Image-processing pipeline
 
+### 3.0 Course topics applied in this project
+
+| DIP topic | Operation implemented | Where the system uses it | Evidence |
+|---|---|---|---|
+| Intensity transformations | Gamma (power-law), log, negative, contrast stretching | Automatic gamma correction of dark frames | 3.1, 3.3 |
+| Histogram processing | Histogram, CDF, global equalisation, CLAHE | Histogram mean triggers gamma; CLAHE is the contrast stage | 3.1, 3.2 |
+| Image restoration: noise models | Gaussian and salt-and-pepper noise, noise estimation (Immerkær), PSNR | Noise estimate sets the denoising strength | 3.3, 3.6 |
+| Spatial filtering: smoothing | Mean, Gaussian, median, bilateral, Non-Local Means | Bilateral filter is the denoising stage | 3.6 |
+| Spatial filtering: sharpening | Laplacian, unsharp masking, Sobel gradient | Unsharp mask is the sharpening stage; Laplacian variance is the blur score | 3.1, 3.7 |
+| Frequency-domain processing | 2-D DFT spectrum, ideal / Butterworth / Gaussian low- and high-pass filters | Analysis: explains the blur score and what the filters do | 3.7 |
+| Colour image processing | BGR → CIELAB, processing the lightness channel only | CLAHE applied to L* so colours are not shifted | 3.8 |
+| Geometric transformations | Similarity transform (Umeyama least squares), affine warp | Face alignment to the 112×112 recognition template | 3.5 |
+| Interpolation | Nearest, bilinear, bicubic, Lanczos | Upscaling small face crops before alignment | 3.5, 4 |
+| Multi-resolution processing | Overlapping tiles, non-maximum suppression | Tiled detection of distant faces | 3.4 |
+
+Every operation is implemented in `src/preprocess.py`, covered by unit tests, and demonstrated
+interactively on the footage in the dashboard's **DIP Lab** page (formula, adjustable parameters,
+before/after images, histograms and measurements for each topic).
+
 Every sampled frame passes through these stages (`src/preprocess.py`).
 
 | # | Stage | Method | Purpose |
@@ -93,6 +112,54 @@ discarded and recovered whole from the neighbouring tile; duplicates are removed
 ### 3.5 Small face crops
 
 ![upscaling small faces](figures/face_upscale.png)
+
+### 3.6 Noise models and spatial filters
+
+Noise of a known kind was added to a clean classroom frame and each smoothing filter was scored by
+PSNR against the clean frame, and by how much edge detail it kept (variance of the Laplacian).
+
+![filters on Gaussian noise](figures/filters_gaussian.png)
+
+![filters on salt-and-pepper noise](figures/filters_salt_pepper.png)
+
+| Filter (5×5) | Gaussian noise σ 15: PSNR | Edges kept (Lap. var) | Salt-and-pepper 8%: PSNR |
+|---|---|---|---|
+| Mean | 29.5 dB | 21 | 26.2 dB |
+| Gaussian | 31.3 dB | 34 | 25.6 dB |
+| Median | 30.1 dB | 70 | **31.6 dB** |
+| Bilateral | **32.6 dB** | 405 | 16.1 dB |
+| Non-Local Means | 31.1 dB | 623 | 16.3 dB |
+
+For Gaussian (sensor) noise the bilateral filter gives the best PSNR and keeps roughly ten times
+more edge detail than the linear filters, which is why it is the pipeline's denoising stage: faces
+must stay sharp for the detector. For impulse noise the order reverses: the median filter removes
+it almost completely, while the edge-preserving filters treat each impulse as an edge and keep it.
+CCTV noise in low light is of the first kind.
+
+### 3.7 Frequency domain
+
+![frequency domain](figures/frequency_domain.png)
+
+| Image | Energy outside the low-frequency disc | Blur score (Lap. var) |
+|---|---|---|
+| Original | 1.35% | 350 |
+| After Gaussian blur σ 2.5 | 0.42% | 3 |
+| After unsharp mask | 2.70% | 1310 |
+
+Blur is a low-pass operation: it removes the outer part of the spectrum, where edges and fine
+detail live. The Laplacian is a high-pass operator, so its variance collapses on a blurred image.
+That is the basis of the blur score used to discard unusable face crops, and of the unsharp mask,
+which adds back a scaled copy of the high-frequency detail. Frequency-domain filtering is used
+here for analysis; the pipeline applies the equivalent filters in the spatial domain, where they
+are cheaper for small kernels.
+
+### 3.8 Colour model
+
+![colour model](figures/colour_lab.png)
+
+CLAHE is applied to the L* (lightness) channel of CIELAB and the a* and b* colour channels are
+left untouched. Equalising B, G and R separately changes the balance between the channels and
+tints the image, which also alters skin tones the recogniser depends on.
 
 ## 4. Recognition accuracy
 
@@ -254,7 +321,10 @@ Notes on reading this table:
   at its real 10-minute threshold. The late arrival is simulated: one student's face is hidden
   for the first 13 minutes, and they are first seen at 13 min 20 s.
 - In session 8 the Late student is also simulated (face blurred for the first 75 s, threshold
-  lowered to 1 minute) and the Absent student is a portrait of someone not in the footage.
+  lowered to 1 minute) and the Absent student is enrolled from photos of a person who is not in
+  that footage.
+- Student names in the demo are invented (initial and surname): the people in the public footage
+  are not identified. They are applied from `data/demo_names.csv`.
 - In session 9 one enrolled person appears briefly in the audience (5 sightings in 2 of 10 time
   buckets) and is correctly left Absent by the persistence rule; the pianist, seen in 3 buckets,
   is Present.
@@ -268,15 +338,15 @@ GTX 1050 against 1.99 s on CPU. At one frame every 3 s both are faster than real
 
 ## 7. Testing
 
-`python -m pytest` runs 66 automated tests in about 40 s.
+`python -m pytest` runs 74 automated tests in about a minute.
 
 | Area | Tests | What is checked |
 |---|---|---|
-| Image processing | 11 | gamma trigger and clamp, noise estimate, denoising, CLAHE vs global HE, unsharp, blur score, tile coverage and overlap |
+| Image processing | 18 | gamma trigger and clamp, intensity transforms, CDF and equalisation, noise models and PSNR, median vs linear vs bilateral filters, Laplacian and Sobel, DFT spectrum and frequency filters, interpolation, LAB colour, CLAHE vs global HE, unsharp, blur score, tile coverage |
 | Timetable and database | 14 | slot lookup and boundaries, midnight-crossing slots, CSV round trip, batch-restricted gallery, cascade deletes |
 | Attendance rules | 22 | Present / Late / Absent at each boundary, thresholds, margin, one-face-per-student, unknown merging, export, virtual clock, time-lapse |
 | Real models | 11 | alignment maths, NMS, face counts, landmarks, same / different person scores, small faces, tiled detection, enrolment, an end-to-end recorded session |
-| Dashboard | 8 | every page loads; navigation, roster search, add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
+| Dashboard | 9 | every page loads; every DIP Lab topic renders; navigation, roster search, add / delete student, re-enrol, save timetable and cameras, run a session, reports, delete session |
 
 The attendance rules are tested with a scripted fake face engine, so each rule is checked exactly
 rather than inferred from footage. Writing the suite found and fixed a real defect: class slots

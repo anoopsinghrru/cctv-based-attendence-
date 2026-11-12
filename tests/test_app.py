@@ -17,7 +17,7 @@ from tests.conftest import ROOT, TEST_SET, needs_models, needs_samples
 
 pytestmark = [needs_models, needs_samples]
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-PAGES = ["overview", "attendance", "students", "timetable", "reports", "system"]
+PAGES = ["overview", "attendance", "students", "timetable", "reports", "dip", "system"]
 
 
 @pytest.fixture
@@ -76,11 +76,25 @@ def test_every_page_loads_on_an_empty_installation(app_cfg):
         go(at, page)
         titles[page] = at.title[0].value
     assert titles == {"overview": "Overview", "attendance": "Take attendance", "students": "Students",
-                      "timetable": "Timetable", "reports": "Reports", "system": "System"}
+                      "timetable": "Timetable", "reports": "Reports", "dip": "DIP Lab", "system": "System"}
     go(at, "reports")
     assert "No sessions yet" in texts(at)
     go(at, "system")
     assert metrics(at)["Face models"] == "Ready"
+
+
+def test_dip_lab_renders_every_topic(app_cfg):
+    from ui.dip_lab import TOPICS
+    at = launch("dip")
+    assert at.title[0].value == "DIP Lab"
+    for topic in TOPICS:
+        by_label(at.radio, "Topic").set_value(topic).run()
+        assert not at.exception, f"{topic}: {at.exception}"
+        assert topic in [s.value for s in at.subheader]
+    # a control changes the result: more noise lowers the measured quality
+    by_label(at.radio, "Topic").set_value("Noise and spatial filtering").run()
+    by_label(at.slider, "Noise level").set_value(30.0).run()
+    assert not at.exception
 
 
 def test_overview_button_opens_take_attendance(app_cfg):

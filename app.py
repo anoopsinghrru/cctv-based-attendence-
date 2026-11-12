@@ -5,7 +5,7 @@ import streamlit as st
 from src.attendance import export_session
 from src.config import ROOT
 from ui import common as c
-from ui import overview, reports, students, system, take_attendance, theme, timetable_page
+from ui import dip_lab, overview, reports, students, system, take_attendance, theme, timetable_page
 
 st.set_page_config(page_title="AttendVision", page_icon=str(ROOT / "assets" / "icon.svg"), layout="wide",
                    initial_sidebar_state="expanded")
@@ -32,11 +32,12 @@ PAGES = {
     "timetable": st.Page(timetable_page.render, title="Timetable", icon=":material/calendar_month:",
                          url_path="timetable"),
     "reports": st.Page(reports.render, title="Reports", icon=":material/insights:", url_path="reports"),
+    "dip": st.Page(dip_lab.render, title="DIP Lab", icon=":material/science:", url_path="dip-lab"),
     "system": st.Page(system.render, title="System", icon=":material/settings:", url_path="system"),
 }
 nav = st.navigation({"": [PAGES["overview"]],
                      "Operations": [PAGES["attendance"], PAGES["students"], PAGES["timetable"]],
-                     "Insights": [PAGES["reports"]],
+                     "Insights": [PAGES["reports"], PAGES["dip"]],
                      "Administration": [PAGES["system"]]})
 st.logo(str(ROOT / "assets" / "logo.svg"), size="large", icon_image=str(ROOT / "assets" / "icon.svg"))
 
