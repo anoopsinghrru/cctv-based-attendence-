@@ -1,0 +1,3 @@
+room,source,description
+R101,0,Laptop or USB webcam (index 0)
+R102,rtsp://user:password@192.168.1.50:554/stream1,IP camera over RTSP

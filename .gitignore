@@ -1,14 +1,79 @@
-# large binaries and downloads
-models/
-tools/
-data/samples/
+# Note: git does not allow a comment on the same line as a pattern.
 
-# personal data: face photos, embeddings, attendance records, snapshots
+# ---------------------------------------------------------------------------
+# Personal and biometric data - never commit
+# ---------------------------------------------------------------------------
+# enrolled face photos
 data/faces/
+# students, face embeddings and attendance records (plus SQLite journal files)
 data/attendance.db
+data/attendance.db-*
+# the real class list - a template is in data/students.example.csv
+data/students.csv
+# may hold RTSP addresses with passwords - a template is in data/cameras.example.csv
+data/cameras.csv
+# reports, face snapshots, annotated videos, uploads, generated figures
 outputs/
 
-# python
+# ---------------------------------------------------------------------------
+# Large downloads - fetched or generated, see README
+# ---------------------------------------------------------------------------
+# det_10g.onnx and w600k_r50.onnx (InsightFace buffalo_l)
+models/
+*.onnx
+# datasets and sample videos
+data/samples/
+# ffmpeg binary copied for yt-dlp
+tools/
+# video files anywhere
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# ---------------------------------------------------------------------------
+# Secrets and local settings
+# ---------------------------------------------------------------------------
+.env
+.env.*
+.streamlit/secrets.toml
+kaggle.json
+config.local.yaml
+
+# ---------------------------------------------------------------------------
+# Editors, tools and operating system
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.claude/*
+!.claude/launch.json
+node_modules/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# files Office and LibreOffice leave while a document is open
+~$*
+.~lock.*#
+*.tmp
+*.log
