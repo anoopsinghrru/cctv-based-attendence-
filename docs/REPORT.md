@@ -116,15 +116,17 @@ face has a chosen width, as it would inside a camera frame.
 | Blurred (σ 1.6), 40 px, no enhancement | 99.6% | 94.4% | 0.0% | 11.4% |
 | Blurred, detect and embed on enhanced | 100% | 89.0% | 0.0% | 22.4% |
 
-Threshold 0.40, or 0.35 for the small (≤ 28 px) and degraded conditions. Full table:
+This table was measured at the initial thresholds: 0.40, or 0.35 for the small (≤ 28 px) and
+degraded conditions. Section 4.1 shows why they were then lowered. Full table:
 [lfw_results.csv](lfw_results.csv).
 
 ![accuracy vs face size](figures/accuracy_vs_face_size.png)
 
 Findings:
 
-1. **The 0.40 threshold is safe.** No false accept occurred in any condition; the errors are all
-   missed matches. Different people score around 0, the same person around 0.6–0.7.
+1. **The 0.40 threshold is safe but too strict.** No false accept occurred in any condition; the
+   errors are all missed matches. Different people score around 0, the same person around
+   0.6–0.7, and the best-separating threshold is near 0.2.
 2. **Recognition holds down to about 20 px faces** and collapses at 14 px, where the detector no
    longer finds the face. This is the case tiling addresses: a 14-px face in a 1080p frame is
    about 36 px inside a tile.
@@ -138,11 +140,72 @@ Findings:
 5. On these already well-exposed benchmark images the enhancement stage did not raise detection,
    which was already 100%. Its measured benefit is on real footage (section 3.4) and dark frames.
 
+### 4.1 Choosing the threshold for a whole class (open set)
+
+Attendance is not one-to-one verification: each face is compared with the whole batch, and many
+people in a room are not enrolled at all. `python scripts/evaluate_open_set.py` simulates this
+on LFW: random classes of 40 enrolled people (clean enrolment photo), probed with a different
+photo of each (degraded) and with 300 strangers. Margin 0.06 throughout.
+
+| Probe | Correctly identified at 0.40 | at 0.35 | at 0.32 | at 0.30 | Strangers accepted at 0.35 | at 0.32 | at 0.30 |
+|---|---|---|---|---|---|---|---|
+| Clean, 110 px | 98.3% | 99.3% | 99.3% | 99.3% | 0.00% | 0.00% | 0.00% |
+| Small, 28 px | 95.3% | 98.9% | 99.4% | 99.4% | 0.00% | 0.00% | 0.00% |
+| Small, 20 px | 85.4% | 92.3% | 95.1% | 96.6% | 0.00% | 0.04% | 0.04% |
+| Soft, 30 px | 77.3% | 87.0% | 93.4% | 95.1% | 0.00% | 0.00% | 0.00% |
+| Blurred, 40 px | 60.0% | 73.9% | 84.3% | 87.3% | 0.00% | 0.00% | 0.09% |
+
+No enrolled person was ever identified as a different student, at any threshold tested.
+Full grid: [open_set.csv](open_set.csv).
+
+The thresholds were therefore lowered from 0.40 / 0.35 to **0.35 for sharp faces and 0.32 for
+blurry ones**: no stranger was accepted at 0.35, at most 0.04% at 0.32, and far more soft and
+blurred faces are recognised. Below 0.30 strangers begin to be accepted.
+
+### 4.2 Detection and identification against the classroom dataset's labels
+
+The classroom dataset annotates every student in every frame with a head-and-shoulders box and
+a behaviour (4,603 boxes in 481 frames). `python scripts/evaluate_dataset.py` uses these as
+ground truth for "a person is here".
+
+![by behaviour](figures/dataset_by_behaviour.png)
+
+| Labelled behaviour | People | Face detected | Identified, unseen recordings |
+|---|---|---|---|
+| Looking forward | 2384 | 97.4% | 66.4% |
+| Turning head | 715 | 90.1% | 53.4% |
+| Using a device | 522 | 79.1% | 55.1% |
+| Reading | 344 | 78.8% | 44.8% |
+| Writing | 320 | 93.1% | 64.0% |
+| Sleeping (head down) | 232 | 65.9% | 31.6% |
+| Standing, hand raised | 86 | 80.2% | – |
+| **All** | **4603** | **90.6%** | **59.3%** |
+
+"Identified" is bounded well below 100% because several people in each room are not enrolled
+(for example six of about eight in class B), and each class was enrolled from one recording only.
+
+This evaluation exposed a defect and guided three changes:
+
+| Setting | Face detected | Identified, unseen recordings | Wide, soft recording: identified |
+|---|---|---|---|
+| Initial (thresholds 0.40 / 0.35, blur cut-off 8, 5 photos) | 82.3% | 52.5% | 27.9% |
+| Blur cut-off 4, thresholds 0.35 / 0.32 | 90.6% | 58.0% | 40.4% |
+| ... and 10 enrolment photos per student | 90.6% | 59.3% | 42.5% |
+
+With the initial settings the full pipeline detected fewer people than a plain full-frame pass
+(82.3% against 87.2%): the blur filter was discarding soft but usable faces. With the cut-off
+lowered, the pipeline beats the plain pass, as intended. Per recording:
+[dataset_by_recording.csv](dataset_by_recording.csv).
+
+The behaviour breakdown is the practical lesson: a student who looks at the board is found
+97% of the time in any single frame; one with their head down, about two thirds. Over a whole
+class the persistence rule (three sightings spread over the session) absorbs this.
+
 ## 5. Attendance logic
 
 - **Gallery restriction.** Only the students of the batch scheduled in that room are compared,
   which shrinks the gallery and removes most chances of a wrong match.
-- **Match.** Best similarity ≥ 0.40 (0.35 when the crop's Laplacian variance is under 60), and
+- **Match.** Best similarity ≥ 0.35 (0.32 when the crop's Laplacian variance is under 60), and
   at least 0.06 above the second-best student. Per frame, a student is given to at most one
   face — the one with the highest similarity.
 - **Decision.** The observed class time is split into 10 buckets.
@@ -160,14 +223,16 @@ Findings:
 | # | Footage | Enrolled from | Students | Present | Late | Absent |
 |---|---|---|---|---|---|---|
 | 1 | University class A, recording 2 | recording 1 | 12 | 12 | 0 | 0 |
-| 2 | University class A, recording 3 (wide shot) | recording 1 | 12 | 8 | 0 | 4 |
-| 3 | University class B, recording 3 | recording 2 | 6 | 4 | 0 | 2 |
+| 2 | University class A, recording 3 (wide, soft shot) | recording 1 | 12 | 9 | 0 | 3 |
+| 3 | University class B, recording 3 | recording 2 | 6 | 5 | 0 | 1 |
 | 4 | University class B, recording 4 | recording 2 | 6 | 5 | 0 | 1 |
 | 5 | University class B, recording 5 | recording 2 | 6 | 5 | 0 | 1 |
-| 6 | Class B, recordings 3+4+5 as a 40-min time-lapse | recording 2 | 6 | 4 | 1 | 1 |
-| 7 | Exam-hall CCTV, last 42 s | first 30 s | 7 | 6 | 0 | 1 |
+| 6 | Class B, recordings 3+4+5 as a 40-min time-lapse, one late arrival simulated | recording 2 | 6 | 4 | 1 | 1 |
+| 7 | Exam-hall CCTV, last 42 s | first 30 s | 7 | 7 | 0 | 0 |
 | 8 | Seminar audience, last 124 s | first 60 s | 14 | 12 | 1 | 1 |
-| 9 | Public test clip | separate portraits | 5 | 1 | 0 | 4 |
+| 9 | Public test clip | separate portraits | 5 | 2 | 0 | 3 |
+
+With the initial thresholds the same sessions gave 8, 4 and 6 Present in rows 2, 3 and 7.
 
 ![classroom session](figures/annotated_classroom.jpg)
 
@@ -181,15 +246,18 @@ Notes on reading this table:
 
 - In sessions 1–6 the class was enrolled from one recording and tested on **different
   recordings**, which is the realistic case. Sessions 7 and 8 use two parts of the same recording.
-- There is no ground truth for who attended each recording, so an "Absent" may be a true absence
-  or a miss. In session 2 (a wide, distant shot) at least two students were matched a few times
-  but stayed under the Present rule, so that session under-counts.
-- Session 6 joins three separate recordings into one class to exercise the Late rule at its real
-  10-minute threshold: one student, absent from the first recording, is first seen 12 min 40 s in.
-- In session 8 the Late student is simulated (face blurred for the first 75 s, threshold lowered
-  to 1 minute) and the Absent student is a portrait of someone not in the footage.
-- In session 9 one enrolled person appears briefly in the audience (5 sightings) and is correctly
-  left Absent by the persistence rule.
+- There is no register of who attended each recording, so an "Absent" may be a true absence or a
+  miss. Session 2 (a wide, soft shot) still under-counts: students there were matched a few
+  times but stayed under the Present rule. One class-B student is Absent in every recording
+  after the enrolment one and may simply not be there.
+- Session 6 joins three separate recordings into one 40-minute class to exercise the Late rule
+  at its real 10-minute threshold. The late arrival is simulated: one student's face is hidden
+  for the first 13 minutes, and they are first seen at 13 min 20 s.
+- In session 8 the Late student is also simulated (face blurred for the first 75 s, threshold
+  lowered to 1 minute) and the Absent student is a portrait of someone not in the footage.
+- In session 9 one enrolled person appears briefly in the audience (5 sightings in 2 of 10 time
+  buckets) and is correctly left Absent by the persistence rule; the pianist, seen in 3 buckets,
+  is Present.
 
 **Live mode** was run on the laptop webcam (enrolled user Present in 15 of 15 frames, best
 similarity 0.77), on a UDP network stream and on an RTSP stream (13 Present, 1 Absent on the
@@ -216,14 +284,18 @@ running past midnight were never matched.
 
 ## 8. Limitations
 
-- **No attendance ground truth.** Recognition accuracy is measured on LFW; attendance on real
-  footage is checked by inspection, not against a register.
+- **No attendance register.** Recognition is measured on LFW and detection against the classroom
+  dataset's person labels, but no source says which named student attended which class, so
+  final Present / Absent decisions are checked by inspection.
+- **Thresholds were tuned on LFW**, whose faces are mostly frontal press photographs. The
+  false-accept rates in section 4.1 may be higher on a classroom camera.
+- **Live cameras.** No IP camera was available: RTSP was verified with a software stream source
+  only, and the live path with one laptop webcam.
 - **Enrolment in the demo comes from video**, clustered automatically. Real use needs 3–5 photos
   per student, and accuracy on photo-enrolled students seen through a classroom camera was only
   tested for one person on a webcam.
 - **Face size.** Below about 20 px recognition degrades, and faces turned away or looking down
   are missed. Camera placement (front of the room, 1080p or better) matters more than any filter.
-- **RTSP** was verified with a software stream source, not with a physical IP camera.
 - **No liveness check**: a printed photo held to the camera would be accepted.
 - **Privacy**: face data is biometric. Consent, retention and access rules are needed before use
   on real students.

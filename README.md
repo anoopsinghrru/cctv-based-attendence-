@@ -21,7 +21,9 @@ Put `det_10g.onnx` and `w600k_r50.onnx` (from InsightFace `buffalo_l.zip`, relea
 python -m streamlit run app.py                 # dashboard
 python -m pytest                               # 66 automated tests (about 40 s)
 python scripts/rebuild_demo_sessions.py        # re-run every demo session from scratch
-python scripts/evaluate.py                     # accuracy on the LFW benchmark
+python scripts/evaluate.py                     # verification accuracy on the LFW benchmark
+python scripts/evaluate_open_set.py            # threshold choice for a class-sized gallery
+python scripts/evaluate_dataset.py             # detection / identification against the dataset's labels
 ```
 
 ## Real use
@@ -45,7 +47,7 @@ when no class is scheduled), `--no-enhance`.
 | Batch | Room | Source | What it shows |
 |---|---|---|---|
 | BSCS-A, BSCS-B | R201, R202 | Kaggle "Classroom Student Engagement Dataset" (Ghulam Mustafa, CC BY-NC 4.0) | Enrol from one class recording, mark attendance on other recordings of the same class |
-| BSCS-B | R202 | The same dataset, three recordings joined as a 40-minute time-lapse | Late at the real 10-minute threshold |
+| BSCS-B | R202 | The same dataset, three recordings joined as a 40-minute time-lapse | Late at the real 10-minute threshold (late arrival simulated) |
 | EXAM | R103 | Altima IP-camera exam-hall clip (YouTube, 720p) | Real overhead CCTV, small faces looking down |
 | CSE-A | R101 | Seminar audience, cropped from the 4K YouTube video "Virtual Reality (VR) Public Speaking Practice Stage: Audience of 100" | 40 people, dim room, tiled detection; Late is simulated |
 | DEMO | R102 | ageitgey/face_recognition example portraits and clip | Enrolment from separate portraits |
@@ -55,19 +57,21 @@ Rebuild from the raw downloads:
 ```
 python scripts/get_sample_video.py --test-set
 python scripts/build_clips_from_frames.py --frames data/samples/kaggle/engagement/dataset/images --out data/samples/kaggle_clips
-python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/owais-class-1.mp4 --batch BSCS-A --prefix A --every 1 --min-face 30 --min-samples 6
-python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/taimoor-class-2.mp4 --batch BSCS-B --prefix B --every 1 --min-face 30 --min-samples 6
+python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/owais-class-1.mp4 --batch BSCS-A --prefix A --every 1 --min-face 30 --min-samples 6 --photos 10
+python scripts/auto_enroll_from_video.py --video data/samples/kaggle_clips/taimoor-class-2.mp4 --batch BSCS-B --prefix B --every 1 --min-face 30 --min-samples 6 --photos 10
+python scripts/simulate_late_arrival.py --video data/samples/kaggle_clips/composite_long_class.mp4 --roll B002 --until 20
 python scripts/rebuild_demo_sessions.py --yes
 ```
 
 `auto_enroll_from_video.py` clusters the faces of a video into students (DBSCAN on embeddings).
 It exists so the pipeline can be shown on footage of people who were never photographed; real
-students are enrolled from photos. The frame-dataset clips are 1 frame per second, so they are
-run with `--every 1`.
+students are enrolled from photos. The frame-dataset clips are 1 frame per second; files at
+2 fps or less are recognised as sparse and every frame is analysed automatically.
 
-Two demo effects are staged and should be presented as such: the CSE-A "Late" student has their
-face blurred for the first 75 s (`simulate_late_arrival.py`, run with `--late-after 1`), and the
-BSCS-B long class is three separate recordings played as one time-lapse.
+Staged demo effects, to be presented as such: both "Late" students are simulated with
+`simulate_late_arrival.py`, which hides a face for the first part of the clip (CSE-A: first 75 s,
+run with `--late-after 1`; BSCS-B: first 13 minutes of a 40-minute time-lapse, at the real
+10-minute threshold). The BSCS-B long class is three separate recordings played as one.
 
 ## Layout
 
@@ -95,8 +99,9 @@ BSCS-B long class is three separate recordings played as one time-lapse.
    low Laplacian variance are rejected.
 6. Detection uses the enhanced frame; the ArcFace embedding is taken from the original pixels,
    because measured match scores are lower on contrast-stretched crops.
-7. A face matches a student when similarity >= 0.40 (0.35 for blurry crops) and beats the
+7. A face matches a student when similarity >= 0.35 (0.32 for blurry crops) and beats the
    second-best student by the margin. One student is assigned to at most one face per frame.
+   These thresholds come from the open-set measurement in the report (section 4.1).
 8. Faces that match nobody are grouped per person and saved as unknown faces.
 
 ## Attendance rules (`config.yaml -> attendance`)

@@ -20,13 +20,15 @@ S = "data/samples/"
 K = S + "kaggle_clips/"
 # room, recording start, video, extra arguments
 DEMO = [
-    ("R201", "2026-11-12 09:00", K + "owais-class-2.mp4", ["--every", "1"]),
-    ("R201", "2026-11-13 11:00", K + "owais-class-3.mp4", ["--every", "1"]),
-    ("R202", "2026-11-12 09:00", K + "taimoor-class-3.mp4", ["--every", "1"]),
-    ("R202", "2026-11-13 11:00", K + "taimoor-class-4.mp4", ["--every", "1"]),
-    ("R202", "2026-11-16 10:00", K + "taimoor-class-5.mp4", ["--every", "1"]),
-    # three recordings joined into one 40-minute time-lapse class: shows Late at the real threshold
-    ("R202", "2026-11-20 11:00", K + "composite_long_class.mp4", ["--timelapse", "40"]),
+    # 1 frame-per-second clips rebuilt from the frame dataset: every frame is analysed automatically
+    ("R201", "2026-11-12 09:00", K + "owais-class-2.mp4", []),
+    ("R201", "2026-11-13 11:00", K + "owais-class-3.mp4", []),
+    ("R202", "2026-11-12 09:00", K + "taimoor-class-3.mp4", []),
+    ("R202", "2026-11-13 11:00", K + "taimoor-class-4.mp4", []),
+    ("R202", "2026-11-16 10:00", K + "taimoor-class-5.mp4", []),
+    # three recordings joined into one 40-minute time-lapse class; one student's face is hidden for
+    # the first 13 minutes (simulate_late_arrival.py) to show Late at the real 10-minute threshold
+    ("R202", "2026-11-20 11:00", K + "composite_long_class_late.mp4", ["--timelapse", "40"]),
     ("R103", "2026-11-12 12:00", S + "cctv_exam_class.mp4", ["--every", "1"]),
     ("R101", "2026-11-12 10:00", S + "seminar_class_late.mp4", ["--every", "3", "--late-after", "1"]),
     ("R102", "2026-11-12 11:00", S + "test_set/hamilton_clip.mp4", ["--every", "1"]),

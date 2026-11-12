@@ -231,10 +231,13 @@ def run_video(proc, path, start_dt, every=None, on_frame=None, should_stop=None,
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     if not 0.01 <= fps <= 240:
         fps = 25.0
+    sparse = fps <= 2 and not frame_seconds         # frame dataset / time-lapse export
     if frame_seconds:
         fps = 1.0 / frame_seconds
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     step = max(1, round(fps * (every or proc.acfg["sample_every_sec"])))
+    if sparse and every is None:
+        step = 1                                    # frames are already sparse samples: use them all
     idx = 0
     try:
         while True:
@@ -254,6 +257,14 @@ def run_video(proc, path, start_dt, every=None, on_frame=None, should_stop=None,
     finally:
         cap.release()
     return proc.finalize()
+
+
+def video_fps(path):
+    """Frame rate of a video file (0 if it cannot be read)."""
+    cap = cv2.VideoCapture(str(path))
+    fps = cap.get(cv2.CAP_PROP_FPS) if cap.isOpened() else 0
+    cap.release()
+    return float(fps or 0)
 
 
 def open_capture(source):

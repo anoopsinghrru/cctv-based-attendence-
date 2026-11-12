@@ -17,11 +17,14 @@ detection:
   tile_overlap: 0.25            # fraction of a tile shared with its neighbour
 
 recognition:
-  match_threshold: 0.40         # cosine similarity for a sharp face
-  blurry_threshold: 0.35        # used when the crop's blur score is low
+  # Thresholds chosen from the open-set test (scripts/evaluate_open_set.py): for a class of 40,
+  # 0.35 / 0.32 gave 0.00-0.04 % false accepts per face and no mis-identification, while
+  # recognising far more blurred faces than the initial 0.40 / 0.35 (84 % against 60 %).
+  match_threshold: 0.35         # cosine similarity for a sharp face
+  blurry_threshold: 0.32        # used when the crop's blur score is low
   margin: 0.06                  # best match must beat the 2nd-best student by this
   blurry_below: 60.0            # Laplacian variance under this => "blurry" crop
-  reject_below: 8.0             # Laplacian variance under this => crop is discarded
+  reject_below: 4.0             # Laplacian variance under this => crop is discarded
   upscale_below_px: 112         # Lanczos-upscale face crops smaller than this
 
 preprocess:

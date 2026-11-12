@@ -88,12 +88,12 @@ def test_short_clip_is_judged_over_its_own_length(setup):
 
 def test_threshold_is_lower_for_blurry_crops(setup):
     cfg = setup[0]
-    assert (cfg["recognition"]["blurry_threshold"], cfg["recognition"]["match_threshold"]) == (0.35, 0.40)
-    _, sharp = run(setup, lambda k: [with_sims({1: 0.37}, blur=200)], 10, 3)
-    assert sharp.loc["S1", "sightings"] == 0             # 0.37 < 0.40
-    _, blurry = run(setup, lambda k: [with_sims({1: 0.37}, blur=20)], 10, 3)
-    assert blurry.loc["S1", "sightings"] == 10           # 0.37 >= 0.35 for a blurry crop
-    _, low = run(setup, lambda k: [with_sims({1: 0.30}, blur=20)], 10, 3)
+    assert (cfg["recognition"]["blurry_threshold"], cfg["recognition"]["match_threshold"]) == (0.32, 0.35)
+    _, sharp = run(setup, lambda k: [with_sims({1: 0.335}, blur=200)], 10, 3)
+    assert sharp.loc["S1", "sightings"] == 0             # 0.335 < 0.35
+    _, blurry = run(setup, lambda k: [with_sims({1: 0.335}, blur=20)], 10, 3)
+    assert blurry.loc["S1", "sightings"] == 10           # 0.335 >= 0.32 for a blurry crop
+    _, low = run(setup, lambda k: [with_sims({1: 0.29}, blur=20)], 10, 3)
     assert low.loc["S1", "sightings"] == 0
 
 

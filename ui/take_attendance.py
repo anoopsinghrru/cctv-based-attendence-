@@ -5,7 +5,7 @@ from pathlib import Path
 import streamlit as st
 
 from src import timetable as tt
-from src.attendance import SessionProcessor, export_session, run_live, run_video
+from src.attendance import SessionProcessor, export_session, run_live, run_video, video_fps
 from src.config import ROOT
 from ui import common as c
 from ui import theme
@@ -64,6 +64,10 @@ def render():
                     begin = datetime.strptime(day.iloc[i]["start"], "%H:%M").time()
                     when = datetime.combine(day_date, begin) + timedelta(minutes=int(offset))
 
+            sparse = bool(video_path) and 0 < video_fps(video_path) <= 2
+            if sparse:
+                st.caption("This file has one frame per second or less (a frame dataset or time-lapse), "
+                           "so every frame is analysed.")
             with st.expander("Advanced settings"):
                 every = st.slider("Sample one frame every (s)", 0.5, 10.0, float(conf["attendance"]["sample_every_sec"]), 0.5)
                 timelapse = 0.0
@@ -122,7 +126,8 @@ def render():
                     if live:
                         run_live(proc, source, every, on_frame)
                     else:
-                        run_video(proc, video_path, when, every, on_frame, frame_seconds=timelapse or None)
+                        run_video(proc, video_path, when, None if sparse and not timelapse else every, on_frame,
+                                  frame_seconds=timelapse or None)
                     export_session(d, eng.cfg, proc.session_id)
                     st.session_state["last_session"] = proc.session_id
                     st.session_state.pop("proc", None)
